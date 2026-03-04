@@ -33,5 +33,7 @@ Thumbs.db
 *.log
 startlog.txt
 icon_positions.json
+*.orig
+ldicons_*.py
 
 
