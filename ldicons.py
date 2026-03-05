@@ -2,7 +2,7 @@
 __author__ = 'Thomas Funk'
 __coauthors__ = 'Github Copilot & Gemini'
 __date__ = "2026/03/05"
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 
 import os
 import sys

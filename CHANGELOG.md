@@ -12,6 +12,8 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-05
+
 ### Added
 - Icon context menu now includes a hover-open `Sort` submenu (`Sort ▶`) with `Sort by Name`, `Sort by Date`, and `Clean up Grid`.
 - Icon context menu now includes `Show hidden Files` as a checkbox toggle.
