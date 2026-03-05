@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__author__ = 'Thomas Funk & Gemini'
+__author__ = 'Thomas Funk, Github Copilot & Gemini'
 __date__ = "2026/03/04"
 __version__ = "0.3.0"
 
@@ -51,18 +51,51 @@ class TeeStream:
     """
 
     def __init__(self, original_stream, file_handle):
+        """
+        Initializes tee stream targets.
+
+        Parameters
+        ----------
+
+        original_stream : object
+            Primary output stream (e.g. original stdout/stderr).
+
+        file_handle : object
+            File-like object used as secondary log target.
+        """
         self.original_stream = original_stream
         self.file_handle = file_handle
 
     def write(self, data):
+        """
+        Writes data to both wrapped output destinations.
+
+        Parameters
+        ----------
+
+        data : str
+            Text chunk to forward to original stream and log file.
+        """
         self.original_stream.write(data)
         self.file_handle.write(data)
 
     def flush(self):
+        """
+        Flushes both wrapped output destinations.
+        """
         self.original_stream.flush()
         self.file_handle.flush()
 
     def isatty(self):
+        """
+        Returns whether the original stream behaves like a TTY.
+
+        Returns
+        -------
+
+        bool:
+            True if the original stream reports TTY behavior, else False.
+        """
         return getattr(self.original_stream, "isatty", lambda: False)()
 
 
@@ -140,7 +173,9 @@ def parse_cli_args():
     return parser.parse_args()
 
 class Monitor:
-    """Holds metadata and rendering surfaces for a single physical output."""
+    """
+    Holds metadata and rendering surfaces for a single physical output.
+    """
     def __init__(self, output_id, wl_output):
         self.output_id = output_id
         self.wl_output = wl_output
@@ -374,7 +409,7 @@ class LDIcons:
         self.menu_visible = False
         self.menu_icon_index = -1
         self.menu_pos = (0, 0)
-        self.menu_items = ["Öffnen", "Mit PCManFM öffnen", "Eigenschaften", "Löschen"]
+        self.menu_items = ["Open", "Open with PCManFM", "Properties", "Delete"]
         self.menu_width = 160
         self.menu_item_height = 30
         
@@ -390,7 +425,7 @@ class LDIcons:
 
         # Check whether required interfaces were bound, otherwise raise an error
         if not self.layer_shell or not self.compositor or not self.shm:
-            raise RuntimeError("Konnte notwendige Wayland-Schnittstellen nicht binden!")
+            raise RuntimeError("Could not bind required Wayland interfaces!")
 
         # Initialize timestamps for live reload
         self.last_config_mtime = os.path.getmtime(self.config_path) if os.path.exists(self.config_path) else 0
@@ -536,11 +571,11 @@ class LDIcons:
             self.positions_path = os.path.expanduser(os.path.expandvars(self.positions_path))
         if self.input_debug:
             print(
-                f"🔤 UI-Font: name='{self.ui_font_name or 'n/a'}' "
+                f"🔤 UI font: name='{self.ui_font_name or 'n/a'}' "
                 f"family='{self.ui_font_family or 'n/a'}' path='{self.ui_font_path or 'fallback'}' "
                 f"fallback='{self.fallback_font_path or 'PillowDefault'}'"
             )
-        print("⚙️ Konfiguration geladen.")
+        print("⚙️ Configuration loaded.")
 
     def _extract_hex_color(self, value):
         """
@@ -878,7 +913,7 @@ class LDIcons:
         self.ui_font_cache[font_key] = loaded_font
 
         if self.input_debug and font_key not in self.ui_font_debug_logged:
-            print(f"🔤 Font geladen: source='{resolved_source}' size={size}px")
+            print(f"🔤 Font loaded: source='{resolved_source}' size={size}px")
             self.ui_font_debug_logged.add(font_key)
 
         return loaded_font
@@ -941,7 +976,7 @@ class LDIcons:
                 break
 
         if self.input_debug and (bg_rgba or fg_rgba):
-            print(f"🎨 GTK Selection-Farben: bg={bg_rgba} fg={fg_rgba}")
+            print(f"🎨 GTK selection colors: bg={bg_rgba} fg={fg_rgba}")
 
         return bg_rgba, fg_rgba
 
@@ -980,7 +1015,7 @@ class LDIcons:
                     normalized[str(key)] = entry
             self.icon_positions = normalized
         except Exception as error:
-            print(f"⚠️ Konnte Icon-Positionen nicht laden: {error}")
+            print(f"⚠️ Could not load icon positions: {error}")
 
     def save_icon_positions(self):
         """
@@ -996,10 +1031,22 @@ class LDIcons:
                 json.dump(positions, file_obj, ensure_ascii=False, indent=2)
             self.icon_positions = positions
         except Exception as error:
-            print(f"⚠️ Konnte Icon-Positionen nicht speichern: {error}")
+            print(f"⚠️ Could not save icon positions: {error}")
 
     def _get_monitor_by_name(self, monitor_name):
-        """Returns monitor object for a persisted monitor name."""
+        """
+        Returns the monitor object for a persisted monitor name.
+
+        Parameters
+        ----------
+        monitor_name : str
+            Persisted monitor name.
+
+        Returns
+        -------
+        Monitor | None:
+            Matching monitor object or None.
+        """
         if not monitor_name:
             return None
         for mon in self.monitors.values():
@@ -1008,7 +1055,21 @@ class LDIcons:
         return None
 
     def _get_monitor_for_point(self, x_pos, y_pos):
-        """Returns the monitor containing the given global desktop coordinates."""
+        """
+        Returns the monitor containing given global desktop coordinates.
+
+        Parameters
+        ----------
+        x_pos : float
+            Global desktop X coordinate.
+        y_pos : float
+            Global desktop Y coordinate.
+
+        Returns
+        -------
+        Monitor | None:
+            Matching monitor object or None.
+        """
         for mon in self.monitors.values():
             if mon.width <= 0 or mon.height <= 0:
                 continue
@@ -1017,13 +1078,37 @@ class LDIcons:
         return None
 
     def _get_monitor_for_icon(self, icon):
-        """Returns the monitor for an icon, based on icon center point."""
+        """
+        Returns the monitor for an icon based on its center point.
+
+        Parameters
+        ----------
+        icon : dict
+            Icon record with position values.
+
+        Returns
+        -------
+        Monitor | None:
+            Matching monitor object or None.
+        """
         center_x = float(icon.get('x', 0)) + (self.icon_size / 2.0)
         center_y = float(icon.get('y', 0)) + (self.icon_size / 2.0)
         return self._get_monitor_for_point(center_x, center_y)
 
     def _resolve_saved_position(self, saved_pos):
-        """Resolves persisted position data to global desktop coordinates."""
+        """
+        Resolves persisted position data to global desktop coordinates.
+
+        Parameters
+        ----------
+        saved_pos : dict
+            Persisted icon position entry.
+
+        Returns
+        -------
+        tuple[int, int] | None:
+            Resolved global coordinates or None.
+        """
         if not isinstance(saved_pos, dict):
             return None
 
@@ -1049,7 +1134,19 @@ class LDIcons:
         return None
 
     def _serialize_icon_position(self, icon):
-        """Builds persisted icon position with monitor-aware grid coordinates."""
+        """
+        Builds a persisted icon position with monitor-aware grid coordinates.
+
+        Parameters
+        ----------
+        icon : dict
+            Icon record with current coordinates.
+
+        Returns
+        -------
+        dict:
+            Serializable position payload.
+        """
         saved = {
             'x': int(icon.get('x', 0)),
             'y': int(icon.get('y', 0)),
@@ -1102,13 +1199,22 @@ class LDIcons:
                 self.refresh_desktop()
 
     def _get_keyboard_interactivity_mode(self):
-        """Returns layer-shell keyboard mode based on rubber-band modifier usage."""
+        """
+        Returns layer-shell keyboard mode based on rubber-band modifier usage.
+
+        Returns
+        -------
+        int:
+            Layer-shell keyboard interactivity mode.
+        """
         if self.rubber_band_modifier != 'none':
             return int(ZwlrLayerSurfaceV1.keyboard_interactivity.exclusive)
         return int(ZwlrLayerSurfaceV1.keyboard_interactivity.none)
 
     def _apply_keyboard_interactivity_mode(self):
-        """Applies keyboard interactivity mode to all existing layer surfaces."""
+        """
+        Applies keyboard interactivity mode to all existing layer surfaces.
+        """
         mode = self._get_keyboard_interactivity_mode()
 
         for mon in self.monitors.values():
@@ -1134,7 +1240,9 @@ class LDIcons:
                 self.refresh_desktop()
 
     def _recompute_virtual_size(self):
-        """Updates virtual desktop size from all known monitor geometries."""
+        """
+        Updates virtual desktop size from all known monitor geometries.
+        """
         max_right = self.width
         max_bottom = self.height
 
@@ -1186,20 +1294,61 @@ class LDIcons:
             self.outputs.append(output)
 
     def _on_geometry(self, mon, output, x, y, pw, ph, sub, make, model, trans):
-        """Called when the server reports output geometry and descriptive name."""
+        """
+        Processes output geometry metadata from the compositor.
+
+        Parameters
+        ----------
+        mon : Monitor
+            Associated monitor object.
+        output : object
+            Wayland output object.
+        x : int
+            Output X origin.
+        y : int
+            Output Y origin.
+        pw : int
+            Physical width in millimeters.
+        ph : int
+            Physical height in millimeters.
+        sub : int
+            Subpixel information.
+        make : str
+            Vendor name.
+        model : str
+            Model name.
+        trans : int
+            Transform value.
+        """
         mon.x, mon.y = x, y
         mon.name = f"{make}_{model}".replace(" ", "_").replace(",", "")
         self._recompute_virtual_size()
 
     def _on_done(self, mon, *_ignored):
-        """Called when all wl_output metadata for this output has been sent."""
+        """
+        Finalizes monitor setup after wl_output metadata is complete.
+
+        Parameters
+        ----------
+        mon : Monitor
+            Monitor object receiving metadata completion.
+        _ignored : tuple
+            Ignored protocol callback values.
+        """
         mon.ready = True
         self._recompute_virtual_size()
         if self.compositor and self.layer_shell and mon.surface is None and mon.width > 0 and mon.height > 0:
             self.setup_monitor_surface(mon)
 
     def setup_monitor_surface(self, mon):
-        """Creates a dedicated layer-shell surface for a specific output."""
+        """
+        Creates a dedicated layer-shell surface for a specific output.
+
+        Parameters
+        ----------
+        mon : Monitor
+            Target monitor object.
+        """
         mon.surface = self.compositor.create_surface()
         self.surface_to_monitor[mon.surface] = mon
         layer_map = {
@@ -1224,7 +1373,22 @@ class LDIcons:
         self.display.flush()
 
     def _on_monitor_layer_surface_configure(self, mon, layer_surface, serial, width, height):
-        """Handles configure for a specific monitor layer-surface."""
+        """
+        Handles configure events for a monitor-specific layer surface.
+
+        Parameters
+        ----------
+        mon : Monitor
+            Target monitor object.
+        layer_surface : object
+            Layer-surface instance for the monitor.
+        serial : int
+            Configure serial for acknowledgment.
+        width : int
+            Configured surface width.
+        height : int
+            Configured surface height.
+        """
         layer_surface.ack_configure(serial)
 
         if width > 0:
@@ -1281,7 +1445,19 @@ class LDIcons:
             self.keyboard_keys_down.clear()
 
     def _get_monitor_by_output(self, wl_output_obj):
-        """Returns monitor object for a wl_output instance."""
+        """
+        Returns the monitor object mapped to a wl_output instance.
+
+        Parameters
+        ----------
+        wl_output_obj : object
+            Wayland output instance.
+
+        Returns
+        -------
+        Monitor | None:
+            Matching monitor object or None.
+        """
         for mon in self.monitors.values():
             if mon.wl_output is wl_output_obj:
                 return mon
@@ -1413,7 +1589,7 @@ class LDIcons:
         # Recalculate icons now that we know the actual size
         self.load_desktop_entries() 
         
-        print(f"✅ Surface konfiguriert: {width}x{height}")
+        print(f"✅ Surface configured: {width}x{height}")
         # Only now, when everything is ready, draw for the first time
         self.refresh_desktop()
 
@@ -1531,7 +1707,7 @@ class LDIcons:
 
         self.active_icon_themes = unique
         if self.input_debug:
-            print(f"🎨 Aktive Icon-Themes: {', '.join(self.active_icon_themes)}")
+            print(f"🎨 Active icon themes: {', '.join(self.active_icon_themes)}")
         return self.active_icon_themes
 
     def find_icon(self, icon_name, *, use_fallback=True):
@@ -1606,21 +1782,21 @@ class LDIcons:
         found = _find_in_roots(icon_roots, scalable_subdirs, svg_extensions)
         if found:
             if self.input_debug:
-                print(f"🖼️ Icon gefunden (scalable svg): {icon_name} -> {found}")
+                print(f"🖼️ Icon found (scalable svg): {icon_name} -> {found}")
             return found
 
         # 2) Then SVG in size subdirectories
         found = _find_in_roots(icon_roots, sized_subdirs, svg_extensions)
         if found:
             if self.input_debug:
-                print(f"🖼️ Icon gefunden (sized svg): {icon_name} -> {found}")
+                print(f"🖼️ Icon found (sized svg): {icon_name} -> {found}")
             return found
 
         # 3) Then raster icons in theme paths
         found = _find_in_roots(icon_roots, scalable_subdirs + sized_subdirs, raster_extensions)
         if found:
             if self.input_debug:
-                print(f"🖼️ Icon gefunden (theme raster): {icon_name} -> {found}")
+                print(f"🖼️ Icon found (theme raster): {icon_name} -> {found}")
             return found
 
         # 4) Finally direct file names (root/pixmaps)
@@ -1632,19 +1808,19 @@ class LDIcons:
             direct_named = os.path.join(root, icon_name)
             if os.path.exists(direct_named):
                 if self.input_debug:
-                    print(f"🖼️ Icon gefunden (direct named): {icon_name} -> {direct_named}")
+                    print(f"🖼️ Icon found (direct named): {icon_name} -> {direct_named}")
                 return direct_named
 
             for ext in svg_extensions + raster_extensions:
                 direct_path = os.path.join(root, icon_name + ext)
                 if os.path.exists(direct_path):
                     if self.input_debug:
-                        print(f"🖼️ Icon gefunden (direct ext): {icon_name} -> {direct_path}")
+                        print(f"🖼️ Icon found (direct ext): {icon_name} -> {direct_path}")
                     return direct_path
 
         fallback = self.get_fallback_icon() if use_fallback else None
         if self.input_debug:
-            print(f"❓ Icon nicht gefunden: {icon_name} -> {fallback}")
+            print(f"❓ Icon not found: {icon_name} -> {fallback}")
         return fallback
 
     def get_fallback_icon(self):
@@ -1813,7 +1989,7 @@ class LDIcons:
             )
             return {
                 'name': filename, 'exec': f"pcmanfm '{filepath}'",
-                'comment': "Ordner", 'icon_path': folder_icon, 'path': filepath
+                'comment': "Folder", 'icon_path': folder_icon, 'path': filepath
             }
         mime, _ = mimetypes.guess_type(filepath)
 
@@ -1860,7 +2036,7 @@ class LDIcons:
 
         return {
             'name': filename, 'exec': f"xdg-open '{filepath}'",
-            'comment': mime if mime else "Datei", 'icon_path': icon_path, 'path': filepath
+            'comment': mime if mime else "File", 'icon_path': icon_path, 'path': filepath
         }
 
     def _update_icon_hitboxes(self, icon):
@@ -1895,7 +2071,21 @@ class LDIcons:
         ]
 
     def _rects_intersect(self, rect_a, rect_b):
-        """Returns True if two rectangles overlap."""
+        """
+        Returns whether two rectangles overlap.
+
+        Parameters
+        ----------
+        rect_a : tuple[float, float, float, float]
+            First rectangle as (x, y, width, height).
+        rect_b : tuple[float, float, float, float]
+            Second rectangle as (x, y, width, height).
+
+        Returns
+        -------
+        bool:
+            True if the rectangles overlap, else False.
+        """
         ax, ay, aw, ah = rect_a
         bx, by, bw, bh = rect_b
         return not (
@@ -1906,7 +2096,21 @@ class LDIcons:
         )
 
     def _point_hits_icon(self, x_pos, y_pos):
-        """Returns icon index at point or -1 if point does not hit icon/text."""
+        """
+        Returns the icon index at a point or -1 if no icon/text is hit.
+
+        Parameters
+        ----------
+        x_pos : float
+            Global desktop X coordinate.
+        y_pos : float
+            Global desktop Y coordinate.
+
+        Returns
+        -------
+        int:
+            Matching icon index or -1.
+        """
         for index, icon in enumerate(self.icons):
             ix, iy, iw, ih = icon['icon_rect']
             if ix <= x_pos <= ix + iw and iy <= y_pos <= iy + ih:
@@ -1919,7 +2123,14 @@ class LDIcons:
         return -1
 
     def _get_rubber_band_rect(self):
-        """Returns normalized rubber-band rectangle as (x, y, width, height)."""
+        """
+        Returns normalized rubber-band rectangle as (x, y, width, height).
+
+        Returns
+        -------
+        tuple[float, float, float, float]:
+            Normalized rectangle coordinates.
+        """
         x0, y0 = self.rubber_band_start
         x1, y1 = self.rubber_band_end
         left = min(x0, x1)
@@ -1929,7 +2140,14 @@ class LDIcons:
         return (left, top, width, height)
 
     def _update_rubber_band_selection(self):
-        """Updates selected icon set from current rubber-band rectangle."""
+        """
+        Updates selected icon set from the current rubber-band rectangle.
+
+        Returns
+        -------
+        bool:
+            True if selection changed, else False.
+        """
         if not self.rubber_band_active:
             return False
 
@@ -1945,7 +2163,14 @@ class LDIcons:
         return changed
 
     def _get_drag_target_indices(self):
-        """Returns icon indices that should move together during drag."""
+        """
+        Returns icon indices that should move together during drag.
+
+        Returns
+        -------
+        set[int]:
+            Set of icon indices participating in current drag.
+        """
         if self.pressed_icon_index in self.selected_indices and self.selected_indices:
             return set(self.selected_indices)
         if self.pressed_icon_index != -1:
@@ -2052,7 +2277,7 @@ class LDIcons:
         if not os.path.exists(self.desktop_path): return
         
         files = [f for f in os.listdir(self.desktop_path) if not f.startswith('.')]
-        print(f"DEBUG: Gefundene Dateien: {files}")
+        print(f"DEBUG: Found files: {files}")
 
         step_x = max(1, int(self.spacing_x))
         step_y = max(1, int(self.spacing_y))
@@ -2125,7 +2350,7 @@ class LDIcons:
             data = self.parse_desktop_file(path) if is_desktop_file else self.get_info_for_generic_file(path)
             if is_desktop_file and data is None:
                 if self.input_debug:
-                    print(f"⚠️ Konnte .desktop nicht parsen, nutze Fallback: {filename}")
+                    print(f"⚠️ Could not parse .desktop, using fallback: {filename}")
                 data = self.get_info_for_generic_file(path)
             
             if data:
@@ -2240,7 +2465,7 @@ class LDIcons:
         
         # 3. Region object can then be destroyed
         region.destroy()
-        print("🎯 Input-Regionen für Icons aktualisiert.")
+        print("🎯 Input regions for icons updated.")
 
     # --- Rendering ---
     def create_buffer(self, width, height):
@@ -2408,7 +2633,7 @@ class LDIcons:
                    self.icon_cache[cache_key] = img
 
                 except Exception as e:
-                    print(f"Fehler bei Icon {icon_info['icon_path']}: {e}")
+                    print(f"Error loading icon {icon_info['icon_path']}: {e}")
                     img = None
     
             if img:
@@ -2577,7 +2802,26 @@ class LDIcons:
             mm[target_pos : target_pos + (copy_w * 4)] = raw_data[src_pos : src_pos + (copy_w * 4)]
 
     def draw_rubber_band_overlay(self, mm, buffer_pixel_width, scale, offset_x=0, offset_y=0, limit_w=None, limit_h=None):
-        """Draws the current rubber-band selection rectangle on top of the frame."""
+        """
+        Draws the current rubber-band selection rectangle on top of the frame.
+
+        Parameters
+        ----------
+        mm : mmap.mmap
+            Target frame buffer.
+        buffer_pixel_width : int
+            Width of the target buffer in pixels.
+        scale : int
+            Output scale factor.
+        offset_x : float
+            Global X offset for local monitor rendering.
+        offset_y : float
+            Global Y offset for local monitor rendering.
+        limit_w : int | None
+            Optional draw width limit.
+        limit_h : int | None
+            Optional draw height limit.
+        """
         if not self.rubber_band_active:
             return
 
@@ -2635,7 +2879,21 @@ class LDIcons:
             mm[target_pos : target_pos + (copy_w * 4)] = self._blend_bgra_over(dst_chunk, src_chunk)
 
     def _blend_bgra_over(self, dst_chunk, src_chunk):
-        """Alpha-blends BGRA source pixels over BGRA destination pixels."""
+        """
+        Alpha-blends BGRA source pixels over BGRA destination pixels.
+
+        Parameters
+        ----------
+        dst_chunk : bytes
+            Destination BGRA pixel data.
+        src_chunk : bytes
+            Source BGRA pixel data.
+
+        Returns
+        -------
+        bytes:
+            Blended BGRA pixel data.
+        """
         out = bytearray(dst_chunk)
         src = memoryview(src_chunk)
 
@@ -2754,7 +3012,9 @@ class LDIcons:
 
     # --- Pointer / Interaction ---
     def setup_keyboard(self):
-        """Initializes keyboard object and registers key/modifier handlers."""
+        """
+        Initializes keyboard object and registers key/modifier handlers.
+        """
         if not self.seat or self.keyboard is not None:
             return
 
@@ -2764,16 +3024,20 @@ class LDIcons:
         self.keyboard.dispatcher['key'] = self._on_keyboard_key
         self.keyboard.dispatcher['modifiers'] = self._on_keyboard_modifiers
         if self.input_debug:
-            print("⌨️ Keyboard initialisiert.")
+            print("⌨️ Keyboard initialized.")
 
     def _on_keyboard_enter(self, keyboard, serial, surface, keys):
-        """Tracks keyboard focus enter for this client."""
+        """
+        Tracks keyboard focus enter for this client.
+        """
         self.keyboard_events_seen = True
         if self.input_debug:
             print("⌨️ keyboard enter")
 
     def _on_keyboard_leave(self, keyboard, serial, surface):
-        """Resets pressed key cache when keyboard focus leaves."""
+        """
+        Resets pressed key cache when keyboard focus leaves.
+        """
         self.keyboard_events_seen = True
         self.keyboard_keys_down.clear()
         self._apply_input_regions_now()
@@ -2781,7 +3045,9 @@ class LDIcons:
             print("⌨️ keyboard leave")
 
     def _on_keyboard_key(self, keyboard, serial, time_ms, key, state):
-        """Tracks currently pressed raw keys for modifier detection."""
+        """
+        Tracks currently pressed raw keys for modifier detection.
+        """
         self.keyboard_events_seen = True
         key_code = int(key)
         is_pressed = int(state) == int(WlKeyboard.key_state.pressed)
@@ -2798,7 +3064,9 @@ class LDIcons:
         self._apply_input_regions_now()
 
     def _on_keyboard_modifiers(self, keyboard, serial, mods_depressed, mods_latched, mods_locked, group):
-        """Receives modifier updates (kept for compatibility/debug)."""
+        """
+        Receives modifier updates (kept for compatibility/debug).
+        """
         self.keyboard_events_seen = True
         self._apply_input_regions_now()
         if self.input_debug:
@@ -2806,7 +3074,19 @@ class LDIcons:
             print(f"⌨️ modifiers changed: mask=0x{effective:08x}")
 
     def _is_modifier_pressed(self, modifier_name):
-        """Checks whether configured modifier key is currently pressed."""
+        """
+        Checks whether a configured modifier key is currently pressed.
+
+        Parameters
+        ----------
+        modifier_name : str
+            Modifier name (`ctrl`, `alt`, `shift`, `super`).
+
+        Returns
+        -------
+        bool:
+            True if any mapped key is pressed, else False.
+        """
         keys = self.keyboard_keys_down
         modifier_map = {
             'ctrl': {29, 97, 37, 105},
@@ -2818,7 +3098,14 @@ class LDIcons:
         return any(code in keys for code in candidates)
 
     def _is_rubber_band_modifier_active(self):
-        """Returns True while configured rubber-band modifier key is pressed."""
+        """
+        Returns whether configured rubber-band modifier is currently active.
+
+        Returns
+        -------
+        bool:
+            True if modifier is active, else False.
+        """
         if self.rubber_band_modifier == 'none':
             return False
         if not self.keyboard_events_seen:
@@ -2826,7 +3113,9 @@ class LDIcons:
         return self._is_modifier_pressed(self.rubber_band_modifier)
 
     def _activate_rubber_band_grace(self):
-        """Activates a short grace window for starting rubber-band selection."""
+        """
+        Activates a short grace window for starting rubber-band selection.
+        """
         duration = max(0.0, float(self.rubber_band_grace_ms) / 1000.0)
         if duration <= 0.0:
             self.rubber_band_grace_until = 0.0
@@ -2834,11 +3123,20 @@ class LDIcons:
         self.rubber_band_grace_until = time.time() + duration
 
     def _is_rubber_band_grace_active(self):
-        """Returns True while the temporary rubber-band grace window is active."""
+        """
+        Returns whether the temporary rubber-band grace window is active.
+
+        Returns
+        -------
+        bool:
+            True if grace window is active, else False.
+        """
         return self.rubber_band_grace_until > time.time()
 
     def _apply_input_regions_now(self):
-        """Updates and commits input regions immediately for active surfaces."""
+        """
+        Updates and commits input regions immediately for active surfaces.
+        """
         if not self.compositor:
             return
 
@@ -2858,7 +3156,25 @@ class LDIcons:
             self.display.flush()
 
     def _is_rubber_band_trigger(self, button, left_buttons, middle_buttons, right_buttons):
-        """Returns True when button and configured modifier allow rubber-band selection."""
+        """
+        Returns whether button and configured modifier allow rubber-band selection.
+
+        Parameters
+        ----------
+        button : int
+            Pressed button code.
+        left_buttons : set[int]
+            Recognized left-button codes.
+        middle_buttons : set[int]
+            Recognized middle-button codes.
+        right_buttons : set[int]
+            Recognized right-button codes.
+
+        Returns
+        -------
+        bool:
+            True if current input should start rubber-band selection.
+        """
         button_name = self.rubber_band_button
         if button_name == 'left' and button not in left_buttons:
             return False
@@ -2884,7 +3200,7 @@ class LDIcons:
         
         self.pointer = self.seat.get_pointer()
         if self.input_debug:
-            print("🖱️ Pointer initialisiert.")
+            print("🖱️ Pointer initialized.")
         self.pointer.dispatcher['enter'] = self._on_pointer_enter
         self.pointer.dispatcher['leave'] = self._on_pointer_leave
         self.pointer.dispatcher['motion'] = self._on_pointer_motion
@@ -3057,7 +3373,7 @@ class LDIcons:
             self.hover_index = new_hover
             self.tooltip_visible = False
             self.last_motion_time = time.time()
-            print(f"🔍 Hover-Index: {self.hover_index}")
+            print(f"🔍 Hover index: {self.hover_index}")
             self.refresh_desktop()
 
     def _on_pointer_button(self, pointer, serial, timestamp, button, state):
@@ -3119,7 +3435,7 @@ class LDIcons:
                     self.refresh_desktop()
 
                 elif button in middle_buttons: # Middle click (PCManFM integration)
-                    print(f"📂 Öffne Ordner: {os.path.dirname(icon['path'])}")
+                    print(f"📂 Open folder: {os.path.dirname(icon['path'])}")
                     subprocess.Popen(["pcmanfm", os.path.dirname(icon['path'])])
 
                 elif button in left_buttons: # Left click
@@ -3274,21 +3590,21 @@ class LDIcons:
                 return
 
             if len(target_icons) == 1:
-                print(f"Menu-Aktion: {action} auf {target_icons[0]['name']}")
+                print(f"Menu action: {action} on {target_icons[0]['name']}")
             else:
-                print(f"Menu-Aktion: {action} auf {len(target_icons)} Einträge")
+                print(f"Menu action: {action} on {len(target_icons)} entries")
 
-            if action == "Öffnen":
+            if action == "Open":
                 for icon in target_icons:
                     self.execute_icon(icon)
-            elif action == "Mit PCManFM öffnen":
+            elif action == "Open with PCManFM":
                 opened_dirs = set()
                 for icon in target_icons:
                     directory = os.path.dirname(icon['path'])
                     if directory and directory not in opened_dirs:
                         opened_dirs.add(directory)
                         subprocess.Popen(["pcmanfm", directory])
-            elif action == "Löschen":
+            elif action == "Delete":
                 removed_any = False
                 for icon in target_icons:
                     if os.path.exists(icon['path']):
@@ -3338,21 +3654,21 @@ class LDIcons:
             cmd = f"xdg-open '{path}'"
         
         if not cmd: return
-        print(f"🚀 Starte: {cmd}")
+        print(f"🚀 Launching: {cmd}")
         
         try:
             args = shlex.split(cmd)
             subprocess.Popen(args, start_new_session=True, 
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
-            print(f"❌ Fehler: {e}")
+            print(f"❌ Error: {e}")
 
     def run(self):
         """
         Starts the main loop for event processing and live reload.
         """
         signal.signal(signal.SIGINT, signal.SIG_DFL)
-        print("🚀 LD-Icons Multi-Monitor Modus aktiv. (Strg+C zum Beenden)")
+        print("🚀 LD-Icons multi-monitor mode active. (Ctrl+C to quit)")
         
         last_check = 0
         check_interval = 1.0  # Check files only once per second
@@ -3373,7 +3689,7 @@ class LDIcons:
                 if self.hover_index != -1 and not self.tooltip_visible:
                     if time.time() - self.last_motion_time > self.tooltip_delay:
                         self.tooltip_visible = True
-                        print("💡 Tooltip einblenden")
+                        print("💡 Showing tooltip")
                         self.refresh_desktop()
 
                 # 3. Expensive file checks (only every 1000ms)
@@ -3389,7 +3705,7 @@ class LDIcons:
                 # No additional sleep needed, select() paces the loop.
                 
         except KeyboardInterrupt:
-            print("\n👋 Beendet.")
+            print("\n👋 Exiting.")
         finally:
             if self.display:
                 self.display.disconnect()
@@ -3413,13 +3729,13 @@ if __name__ == "__main__":
     )
 
     # Force registry data retrieval (important for interfaces)
-    print("🛰️ Synchronisiere Registry...")
+    print("🛰️ Syncing registry...")
     app.display.roundtrip() 
 
     # Surface Setup
     app.setup_desktop_surface()
     
-    print("⏳ Warte auf Wayland-Konfiguration...")
+    print("⏳ Waiting for Wayland configuration...")
     try:
         # dispatch(block=True) with short timeout or block=False
         print("Knock on... (dispatch(block=False))"),
@@ -3433,26 +3749,25 @@ if __name__ == "__main__":
 
         # IMPORTANT: Make a roundtrip that WAITS for the 'configure' event
         # This replaces your error-prone while loop
-        print("⏳ Warte auf Server-Konfiguration (Layer Shell)...")
+        print("⏳ Waiting for server configuration (Layer Shell)...")
         app.display.roundtrip() 
 
     except Exception as e:
         # Sometimes read_events raises an error when the buffer is empty
-        print(f"Wayland Dispatch Fehler: {e}")
+        print(f"Wayland dispatch error: {e}")
         pass
 
     time.sleep(0.05)
     
     if app.configured:
-        print(f"✅ Bereit! Größe: {app.width}x{app.height}")
+        print(f"✅ Ready! Size: {app.width}x{app.height}")
         app.run()
     else:
         # If it still does not work, check whether everything was bound at all
-        print("❌ Server hat die Surface nicht konfiguriert. Prüfe Schnittstellen...")
+        print("❌ Server did not configure the surface. Check interfaces...")
         print(f"Layer Shell: {app.layer_shell}, Compositor: {app.compositor}")
-        print("Stelle sicher, dass dein Wayland-Compositor die zwlr_layer_shell_v1 \
-            unterstützt und dass keine Fehler beim Binden der Schnittstellen \
-                aufgetreten sind.")
+        print("Make sure your Wayland compositor supports zwlr_layer_shell_v1 \
+            and that no errors occurred while binding required interfaces.")
         
         sys.exit(1)
     sys.exit(0)
