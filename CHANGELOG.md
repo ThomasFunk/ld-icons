@@ -12,6 +12,14 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- Image files on the desktop now render as real thumbnails in icon size, preserving aspect ratio with transparent padding for non-square images.
+- Added a `Makefile` with `install` / `uninstall` targets for system-wide and user-local installation.
+
+### Changed
+- `README.md` introduction expanded with a clearer project summary.
+- `README.md` installation section now documents practical manual install steps for end users.
+
 ## [0.5.1] - 2026-03-06
 
 ### Added

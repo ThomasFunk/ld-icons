@@ -2,6 +2,12 @@
 
 > Show Files from a Directory on the Desktop
 
+`ld-icons` stands for Layer-Desktop-Icons and is a lightweight Wayland desktop-icons service for wlroots-based compositors.
+
+It renders files from your Desktop folder directly onto a layer-shell surface, keeps icon
+positions persistent across restarts, and supports practical desktop interactions like
+multi-select, drag-and-drop grid placement, context-menu actions, sorting, and status overlays.
+
 ## Features
 
 - [X] Show content from the Desktop folder as Icons on the Desktop
@@ -16,7 +22,8 @@
 - [X] Sort submenu (Name / Type / Date / Clean up Grid)
 - [X] Show hidden files toggle (persistent)
 - [X] Status overlays (read-only / symlink, custom theme fallback)
-- [ ] Thumbnails for Images/Documents
+- [X] Thumbnails for Images
+- [ ] Thumbnails for Documents
 - [X] Sort Rows of List Store based on Name/Type/Date
 - [ ] Context-Menu for creating files (real create action pending)
 - [ ] File drag-and-drop between desktop and other applications (Wayland data-device DnD)
@@ -42,24 +49,42 @@ Layer shell **is not supported** on:
 - gtk+-3.0
 - gtk-layer-shell
 
-Arch
-```sh
-sudo pacman -S gtk3 gtk-layer-shell
-```
-
 ### Installation
 
+Clone repository:
+
 ```sh
-git clone https://github.com/Geronymos/ld-icons
+git clone https://github.com/ThomasFunk/ld-icons
 cd ld-icons
+```
+
+Install Python dependencies:
+
+```sh
+python3 -m pip install -r requirements.txt
+```
+
+System-wide installation (default: `/usr/local`):
+
+```sh
 make
 sudo make install
 ```
 
-Uninstall
+User-local installation (without `sudo`):
+
+```sh
+make PREFIX="$HOME/.local" install
+```
+
+Uninstall:
+
 ```sh
 sudo make uninstall
+# or for user-local install:
+make PREFIX="$HOME/.local" uninstall
 ```
+
 
 ### Usage
 
