@@ -141,6 +141,33 @@ rubber_band_grace_ms = 700
 layer = bottom
 ```
 
+Custom status overlays (read-only / symlink) can be configured with a custom emblem directory:
+
+```ini
+[Appearance]
+# Optional: custom emblem directory
+status_emblems_path = ~/.config/ldicons/emblems
+```
+
+Lookup order for status overlays:
+
+1. Custom emblems from `status_emblems_path` (if set and directory exists)
+2. Current icon theme
+3. Internal drawn fallback badge
+
+Runtime behavior:
+
+- Only one status overlay badge is rendered.
+- Badge position is always bottom-right of the icon graphic.
+- Priority is `readonly` first, then `symlink`.
+
+Recognized custom emblem base names:
+
+- Read-only: `emblem-readonly`, `changes-prevent`, `object-locked`, `emblem-locked`, `readonly`, `lock`
+- Symlink: `emblem-symbolic-link`, `emblem-symlink`, `emblem-symlink-symbolic`, `insert-link`, `symlink`, `link`
+
+Supported file extensions in custom directory: `.svg`, `.png`, `.xpm` (or file without extension if provided exactly).
+
 ### Localization (gettext)
 
 Menu labels and related dialog texts use gettext catalogs.

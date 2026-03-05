@@ -2,7 +2,7 @@
 __author__ = 'Thomas Funk'
 __coauthors__ = 'Github Copilot & Gemini'
 __date__ = "2026/03/05"
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 import os
 import sys
@@ -235,6 +235,8 @@ class LDIcons:
 
     icons: list[dict]
     icon_cache: dict
+    status_icon_cache: dict
+    status_emblems_path: str
     active_icon_themes: list[str]
     ui_font_name: str
     ui_font_family: str
@@ -371,6 +373,8 @@ class LDIcons:
         # Icons and caching
         self.icons = []              
         self.icon_cache = {}
+        self.status_icon_cache = {}
+        self.status_emblems_path = ""
         self.active_icon_themes = []
         self.ui_font_name = ""
         self.ui_font_family = ""
@@ -564,6 +568,9 @@ class LDIcons:
         self.text_selected = get_color('Appearance', 'label_text_color_selected', theme_select_fg or (255, 255, 255, 255))
         self.text_normal = get_color('Appearance', 'label_text_color_normal', (255, 255, 255, 255))
         self.tooltip_bg = get_color('Appearance', 'tooltip_bg_color', (255, 255, 200, 255))
+        custom_emblems_raw = config.get('Appearance', 'status_emblems_path', fallback='').strip()
+        self.status_emblems_path = os.path.expanduser(os.path.expandvars(custom_emblems_raw)) if custom_emblems_raw else ""
+        self.status_icon_cache.clear()
         
         # Layout
         self.spacing_x = config.getint('Layout', 'grid_spacing_x', fallback=140)
@@ -2739,8 +2746,14 @@ class LDIcons:
     
             if img:
                 icon_x = (canvas_w - s_icon) // 2
+                icon_y = int(1 * scale)
                 # Centered in the event area (1px top/bottom padding for +2px)
-                canvas.paste(img, (icon_x, int(1 * scale)), img)
+                canvas.paste(img, (icon_x, icon_y), img)
+                try:
+                    self._draw_status_overlays(canvas, icon_info, icon_x, icon_y, s_icon, scale)
+                except Exception as error:
+                    if self.input_debug:
+                        print(f"⚠️ Status overlay draw failed for '{icon_info.get('name', '?')}': {error}")
     
         # 3. Cinnamon text field logic
         text_bg_y = s_event
@@ -3864,6 +3877,252 @@ class LDIcons:
     def _open_desktop_folder(self):
         """Opens configured desktop folder in file manager."""
         subprocess.Popen(["xdg-open", self.desktop_path], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _draw_status_overlays(self, canvas, icon_info, icon_x, icon_y, icon_size, scale):
+        """
+        Draws status overlays (read-only lock and symlink arrow) on an icon.
+
+        Parameters
+        ----------
+        canvas : Image.Image
+            Icon canvas.
+        icon_info : dict
+            Icon data record.
+        icon_x : int
+            Icon X position on canvas.
+        icon_y : int
+            Icon Y position on canvas.
+        icon_size : int
+            Icon size in pixels.
+        scale : int
+            Current output scale.
+        """
+        is_read_only = self._is_icon_read_only(icon_info)
+        is_symlink = self._is_icon_symlink(icon_info)
+        if not is_read_only and not is_symlink:
+            return
+
+        # Windows-like behavior: one overlay badge at bottom-right of icon.
+        kind = "readonly" if is_read_only else "symlink"
+        badge_size = max(12, int(icon_size * 0.34))
+        margin = max(1, int(2 * scale))
+        bx = icon_x + icon_size - badge_size - margin
+        by = icon_y + icon_size - badge_size - margin
+
+        theme_overlay = self._get_status_theme_icon(kind, badge_size)
+        if theme_overlay:
+            canvas.paste(theme_overlay, (bx, by), theme_overlay)
+        else:
+            self._draw_status_badge(canvas, kind, bx, by, badge_size)
+
+    def _get_status_theme_icon(self, kind, size):
+        """
+        Resolves and rasterizes a themed status icon for overlays.
+
+        Parameters
+        ----------
+        kind : str
+            Badge type (`readonly` or `symlink`).
+        size : int
+            Desired rendered size in pixels.
+
+        Returns
+        -------
+        Image.Image | None:
+            Rasterized overlay icon from theme, or None if unavailable.
+        """
+        cache_key = ("kind", kind, size, self.status_emblems_path)
+        if cache_key in self.status_icon_cache:
+            return self.status_icon_cache[cache_key]
+
+        candidates_by_kind = {
+            "readonly": [
+                "emblem-readonly",
+                "changes-prevent",
+                "object-locked",
+                "emblem-locked",
+            ],
+            "symlink": [
+                "emblem-symbolic-link",
+                "emblem-symlink",
+                "emblem-symlink-symbolic",
+                "insert-link",
+            ],
+        }
+
+        candidates = candidates_by_kind.get(kind, [])
+        resolved = self._get_custom_status_icon(kind, size)
+        if resolved is not None:
+            self.status_icon_cache[cache_key] = resolved
+            return resolved
+
+        for icon_name in candidates:
+            icon_path = self.find_icon(icon_name, use_fallback=False)
+            if not icon_path:
+                continue
+            resolved = self._load_status_icon_image(icon_path, size)
+            if resolved:
+                break
+
+        self.status_icon_cache[cache_key] = resolved
+        return resolved
+
+    def _get_custom_status_icon(self, kind, size):
+        """
+        Loads a custom status emblem from configured directory.
+
+        Parameters
+        ----------
+        kind : str
+            Badge type (`readonly` or `symlink`).
+        size : int
+            Target square size in pixels.
+
+        Returns
+        -------
+        Image.Image | None:
+            Rasterized custom emblem or None if not configured/not found.
+        """
+        root_path = (self.status_emblems_path or "").strip()
+        if not root_path or (not os.path.isdir(root_path)):
+            return None
+
+        candidates_by_kind = {
+            "readonly": [
+                "emblem-readonly",
+                "changes-prevent",
+                "object-locked",
+                "emblem-locked",
+                "readonly",
+                "lock",
+            ],
+            "symlink": [
+                "emblem-symbolic-link",
+                "emblem-symlink",
+                "emblem-symlink-symbolic",
+                "insert-link",
+                "symlink",
+                "link",
+            ],
+        }
+
+        extensions = [".svg", ".png", ".xpm"]
+        for base_name in candidates_by_kind.get(kind, []):
+            direct_path = os.path.join(root_path, base_name)
+            if os.path.isfile(direct_path):
+                loaded = self._load_status_icon_image(direct_path, size)
+                if loaded is not None:
+                    return loaded
+
+            for ext in extensions:
+                candidate_path = os.path.join(root_path, base_name + ext)
+                if not os.path.isfile(candidate_path):
+                    continue
+                loaded = self._load_status_icon_image(candidate_path, size)
+                if loaded is not None:
+                    return loaded
+
+        return None
+
+    def _load_status_icon_image(self, icon_path, size):
+        """
+        Loads and rasterizes a status icon from a filesystem path.
+
+        Parameters
+        ----------
+        icon_path : str
+            Source icon path.
+        size : int
+            Target square size in pixels.
+
+        Returns
+        -------
+        Image.Image | None:
+            Loaded RGBA icon image or None on error.
+        """
+        cache_key = ("path", icon_path, size)
+        if cache_key in self.status_icon_cache:
+            return self.status_icon_cache[cache_key]
+
+        loaded = None
+        try:
+            if icon_path.endswith('.svg'):
+                png_data = svg2png(url=icon_path, parent_width=size, parent_height=size)
+                loaded = Image.open(io.BytesIO(png_data))
+            else:
+                loaded = Image.open(icon_path)
+            loaded = loaded.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+        except Exception as error:
+            if self.input_debug:
+                print(f"⚠️ Failed loading status theme icon '{icon_path}': {error}")
+            loaded = None
+
+        self.status_icon_cache[cache_key] = loaded
+        return loaded
+
+    def _draw_status_badge(self, canvas, kind, x_pos, y_pos, size):
+        """
+        Draws one status badge glyph.
+
+        Parameters
+        ----------
+        canvas : Image.Image
+            Destination canvas.
+        kind : str
+            Badge type (`readonly` or `symlink`).
+        x_pos : int
+            Badge X position.
+        y_pos : int
+            Badge Y position.
+        size : int
+            Badge diameter in pixels.
+        """
+        draw = ImageDraw.Draw(canvas)
+
+        if kind == "symlink":
+            bg_color = (0, 125, 255, 245)
+            fg_color = (255, 255, 255, 255)
+            outline_color = (0, 0, 0, 220)
+        else:
+            bg_color = (18, 18, 18, 235)
+            fg_color = (245, 245, 245, 255)
+            outline_color = (255, 255, 255, 190)
+
+        draw.ellipse([x_pos, y_pos, x_pos + size - 1, y_pos + size - 1], fill=bg_color, outline=outline_color)
+
+        center_x = x_pos + (size // 2)
+        center_y = y_pos + (size // 2)
+
+        if kind == "readonly":
+            body_w = max(4, int(size * 0.42))
+            body_h = max(4, int(size * 0.33))
+            body_x0 = center_x - (body_w // 2)
+            body_y0 = y_pos + int(size * 0.48)
+            body_x1 = body_x0 + body_w
+            body_y1 = body_y0 + body_h
+            draw.rectangle([body_x0, body_y0, body_x1, body_y1], fill=fg_color)
+
+            arc_w = max(4, int(size * 0.38))
+            arc_h = max(4, int(size * 0.34))
+            arc_x0 = center_x - (arc_w // 2)
+            arc_y0 = y_pos + int(size * 0.20)
+            arc_x1 = arc_x0 + arc_w
+            arc_y1 = arc_y0 + arc_h
+            draw.arc([arc_x0, arc_y0, arc_x1, arc_y1], start=200, end=-20, fill=fg_color, width=max(1, size // 8))
+        elif kind == "symlink":
+            shaft_y = center_y
+            start_x = x_pos + int(size * 0.20)
+            end_x = x_pos + int(size * 0.78)
+            draw.line([(start_x, shaft_y), (end_x, shaft_y)], fill=fg_color, width=max(2, size // 5))
+            head = max(4, size // 3)
+            draw.polygon(
+                [
+                    (end_x, shaft_y),
+                    (end_x - head, shaft_y - head // 2),
+                    (end_x - head, shaft_y + head // 2),
+                ],
+                fill=fg_color,
+            )
 
     def _is_icon_symlink(self, icon):
         """Returns True when icon path is a symbolic link."""

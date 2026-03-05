@@ -12,6 +12,21 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-03-05
+
+### Added
+- Configurable custom status emblem directory via `status_emblems_path` in `ldicons.conf`.
+- Custom emblem lookup support for read-only/symlink overlays (`.svg`, `.png`, `.xpm`, plus direct filenames).
+
+### Changed
+- Status overlay resolution order is now: custom emblem path → active icon theme → internal drawn fallback.
+- Runtime status overlay behavior now renders exactly one badge at icon bottom-right.
+- Single-badge priority is now `readonly` before `symlink`.
+- `README.md` updated with custom-emblem configuration and runtime overlay behavior.
+
+### Fixed
+- Overlay rendering path is now guarded and resilient, avoiding icon draw interruptions on badge load failures.
+
 ## [0.4.0] - 2026-03-05
 
 ### Added

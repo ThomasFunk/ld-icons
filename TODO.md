@@ -10,6 +10,7 @@
 - [ ] Add optional swap behavior for grid snapping: if a target cell is already occupied during drag-and-drop, swap the two icons instead of moving to the next free cell.
 - [ ] Add real locale-based hyphenation for icon labels (e.g. `pyphen` with `de_DE`) instead of purely character-based splitting for long words.
 - [ ] Introduce proper UI localization with gettext (`.po`/`.mo`) instead of hardcoded strings: includes context-menu labels, tooltip fallbacks (e.g. trash), and other visible UI text.
+- [ ] Extend status-emblem system to support additional configurable emblem types (without code changes), including per-type priority and icon-name mapping.
 - [ ] Change CLI defaults for `--conf` and `--pos` to `~/.config/deskicons/` instead of workspace paths.
 - [ ] Deployment: convert dependencies from the current `.venv` into a reproducible package list (`requirements.txt`/lockfile).
 	- Current snapshot (venv):
