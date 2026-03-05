@@ -262,6 +262,7 @@ class LDIcons:
     rubber_band_button: str
     rubber_band_grace_ms: int
     rubber_band_grace_until: float
+    layer_name: str
     keyboard_events_seen: bool
     keyboard_keys_down: set[int]
 
@@ -387,6 +388,7 @@ class LDIcons:
         self.rubber_band_button = "left"
         self.rubber_band_grace_ms = 700
         self.rubber_band_grace_until = 0.0
+        self.layer_name = "bottom"
         self.keyboard_events_seen = False
         self.keyboard_keys_down = set()
         self.snap_to_grid = True
@@ -564,6 +566,8 @@ class LDIcons:
         self.rubber_band_grace_ms = config.getint('Behavior', 'rubber_band_grace_ms', fallback=700)
         self.rubber_band_grace_ms = max(0, min(5000, int(self.rubber_band_grace_ms)))
         self.layer_name = config.get('Behavior', 'layer', fallback='bottom').strip().lower()
+        if self.layer_name not in {'background', 'bottom', 'top', 'overlay'}:
+            self.layer_name = 'bottom'
         if not self.positions_path_locked:
             configured_positions = config.get('Behavior', 'positions_file', fallback=self.positions_path).strip()
             self.positions_path = os.path.expanduser(os.path.expandvars(configured_positions))
@@ -1255,6 +1259,23 @@ class LDIcons:
         self.width = max_right
         self.height = max_bottom
 
+    def _get_layer_value(self):
+        """
+        Resolves configured layer name to a layer-shell enum value.
+
+        Returns
+        -------
+        int:
+            Layer enum value for zwlr_layer_shell_v1.
+        """
+        layer_map = {
+            'background': int(ZwlrLayerShellV1.layer.background),
+            'bottom': int(ZwlrLayerShellV1.layer.bottom),
+            'top': int(ZwlrLayerShellV1.layer.top),
+            'overlay': int(ZwlrLayerShellV1.layer.overlay),
+        }
+        return layer_map.get(self.layer_name, int(ZwlrLayerShellV1.layer.bottom))
+
     # --- Wayland: Registry / Output / Surface ---
     def _registry_global_handler(self, registry, id, interface, version):
         """
@@ -1351,13 +1372,7 @@ class LDIcons:
         """
         mon.surface = self.compositor.create_surface()
         self.surface_to_monitor[mon.surface] = mon
-        layer_map = {
-            'background': int(ZwlrLayerShellV1.layer.background),
-            'bottom': int(ZwlrLayerShellV1.layer.bottom),
-            'top': int(ZwlrLayerShellV1.layer.top),
-            'overlay': int(ZwlrLayerShellV1.layer.overlay),
-        }
-        layer_value = layer_map.get(self.layer_name, int(ZwlrLayerShellV1.layer.bottom))
+        layer_value = self._get_layer_value()
         mon.layer_surface = self.layer_shell.get_layer_surface(
             mon.surface, mon.wl_output, layer_value, "desktop_icons"
         )
@@ -1533,13 +1548,7 @@ class LDIcons:
                     self.setup_monitor_surface(mon)
             return
 
-        layer_map = {
-            'background': int(ZwlrLayerShellV1.layer.background),
-            'bottom': int(ZwlrLayerShellV1.layer.bottom),
-            'top': int(ZwlrLayerShellV1.layer.top),
-            'overlay': int(ZwlrLayerShellV1.layer.overlay),
-        }
-        layer_value = layer_map.get(self.layer_name, int(ZwlrLayerShellV1.layer.top))
+        layer_value = self._get_layer_value()
         self.surface = self.compositor.create_surface()
         self.layer_surface = self.layer_shell.get_layer_surface(self.surface, None, layer_value, "desktop_icons")
         # The dispatcher waits for confirmation (configure event) from the server

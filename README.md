@@ -136,6 +136,9 @@ rubber_band_button = left
 # Reliability grace window in milliseconds after interactions
 # (helps with compositor timing/order quirks)
 rubber_band_grace_ms = 700
+
+# Layer-shell level for ldicons: background | bottom | top | overlay
+layer = bottom
 ```
 
 Notes:
