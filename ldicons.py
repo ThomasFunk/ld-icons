@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 __author__ = 'Thomas Funk'
 __coauthors__ = 'Github Copilot & Gemini'
-__date__ = "2026/03/05"
-__version__ = "0.5.0"
+__date__ = "2026/03/06"
+__version__ = "0.5.1"
 
 import os
 import sys
@@ -452,6 +452,7 @@ class LDIcons:
         ]
         self.menu_entries_sort = [
             ("sort_name", _("Sort by Name")),
+            ("sort_type", _("Sort by Type")),
             ("sort_date", _("Sort by Date")),
             ("cleanup_grid", _("Clean up Grid")),
         ]
@@ -1313,15 +1314,15 @@ class LDIcons:
 
     def _get_keyboard_interactivity_mode(self):
         """
-        Returns layer-shell keyboard mode based on rubber-band modifier usage.
+        Returns layer-shell keyboard mode for desktop icons.
 
         Returns
         -------
         int:
             Layer-shell keyboard interactivity mode.
         """
-        if self.rubber_band_modifier != 'none':
-            return int(ZwlrLayerSurfaceV1.keyboard_interactivity.exclusive)
+        # Never request keyboard focus for the desktop layer surface.
+        # This prevents stealing focus from regular applications (e.g. terminals).
         return int(ZwlrLayerSurfaceV1.keyboard_interactivity.none)
 
     def _apply_keyboard_interactivity_mode(self):
@@ -3880,7 +3881,7 @@ class LDIcons:
             Mouse position Y on click.
         """
         hit_area, item_index = self._menu_hit_test(mx, my)
-        target_optional_actions = {"open_desktop_folder", "create", "toggle_hidden_files", "sort_menu", "sort_name", "sort_date", "cleanup_grid"}
+        target_optional_actions = {"open_desktop_folder", "create", "toggle_hidden_files", "sort_menu", "sort_name", "sort_type", "sort_date", "cleanup_grid"}
         
         if hit_area == "main" and 0 <= item_index < len(self.menu_entries_main):
             action_key, action_label = self.menu_entries_main[item_index]
@@ -3965,6 +3966,8 @@ class LDIcons:
                 self._handle_delete_action(target_icons)
             elif action_key == "sort_name":
                 self._sort_icons_by_name()
+            elif action_key == "sort_type":
+                self._sort_icons_by_type()
             elif action_key == "sort_date":
                 self._sort_icons_by_date()
             elif action_key == "cleanup_grid":
@@ -4223,6 +4226,71 @@ class LDIcons:
     def _sort_icons_by_name(self):
         """Sorts icons by display name and rearranges them to the grid."""
         ordered = sorted(self.icons, key=lambda icon: str(icon.get('name', '')).casefold())
+        self._arrange_icons_on_grid(ordered)
+
+    def _sort_icons_by_type(self):
+        """Sorts icons by human-friendly type groups and rearranges them to the grid."""
+        def _type_key(icon):
+            path = icon.get('path', '')
+            name_key = str(icon.get('name', '')).casefold()
+            extension = os.path.splitext(path)[1].lower() if path else ""
+
+            document_mimes = {
+                "application/pdf",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-powerpoint",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "application/rtf",
+                "application/vnd.oasis.opendocument.text",
+                "application/vnd.oasis.opendocument.spreadsheet",
+                "application/vnd.oasis.opendocument.presentation",
+            }
+            archive_mimes = {
+                "application/zip",
+                "application/x-zip-compressed",
+                "application/x-7z-compressed",
+                "application/x-rar",
+                "application/x-rar-compressed",
+                "application/x-tar",
+                "application/gzip",
+                "application/x-gzip",
+                "application/x-bzip",
+                "application/x-bzip2",
+                "application/x-xz",
+            }
+            document_extensions = {
+                ".txt", ".md", ".rst", ".pdf", ".doc", ".docx", ".rtf",
+                ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp",
+                ".csv", ".json", ".yaml", ".yml", ".xml", ".ini", ".conf",
+            }
+            archive_extensions = {
+                ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz",
+            }
+
+            try:
+                if path and os.path.isdir(path):
+                    return (0, "folder", name_key)
+            except Exception:
+                pass
+
+            mime, _mime_encoding = mimetypes.guess_type(path)
+
+            if mime and mime.startswith("image/"):
+                return (1, mime, name_key)
+            if mime and mime.startswith("video/"):
+                return (2, mime, name_key)
+            if mime and mime.startswith("audio/"):
+                return (3, mime, name_key)
+            if (mime and (mime.startswith("text/") or mime in document_mimes)) or extension in document_extensions:
+                return (4, mime or extension or "document", name_key)
+            if (mime and mime in archive_mimes) or extension in archive_extensions:
+                return (5, mime or extension or "archive", name_key)
+            return (6, mime or extension or "unknown", name_key)
+
+        ordered = sorted(self.icons, key=_type_key)
         self._arrange_icons_on_grid(ordered)
 
     def _sort_icons_by_date(self):

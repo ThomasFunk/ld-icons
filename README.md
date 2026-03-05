@@ -13,11 +13,11 @@
 - [X] Multi-Monitor Support
 - [X] Rubber-band multi-select with group move
 - [X] Context menu: Open / Edit / Rename / Delete / Properties
-- [X] Sort submenu (Name / Date / Clean up Grid)
+- [X] Sort submenu (Name / Type / Date / Clean up Grid)
 - [X] Show hidden files toggle (persistent)
 - [X] Status overlays (read-only / symlink, custom theme fallback)
 - [ ] Thumbnails for Images/Documents
-- [ ] Sort Rows of List Store based on Name/Type/Date (Type pending)
+- [X] Sort Rows of List Store based on Name/Type/Date
 - [ ] Context-Menu for creating files (real create action pending)
 - [ ] File drag-and-drop between desktop and other applications (Wayland data-device DnD)
 
@@ -150,6 +150,7 @@ layer = bottom
 Context-menu actions now also include a `Sort ▶` submenu:
 
 - `Sort by Name` (alphabetical)
+- `Sort by Type` (folders → images → videos → audio → documents → archives → others)
 - `Sort by Date` (newest first)
 - `Clean up Grid` (re-snaps all icons to consecutive grid slots)
 

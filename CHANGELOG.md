@@ -12,6 +12,14 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-03-06
+
+### Added
+- Sort submenu now supports `Sort by Type` with fixed category order (folders, images, videos, audio, documents, archives, others).
+
+### Fixed
+- Desktop layer surface no longer requests keyboard focus; this prevents focus loss in regular apps (e.g. Alacritty).
+
 ## [0.5.0] - 2026-03-05
 
 ### Added
