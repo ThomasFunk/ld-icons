@@ -258,6 +258,7 @@ class LDIcons:
     menu_visible: bool
     menu_icon_index: int
     menu_hover_index: int
+    menu_disabled_actions: set[str]
     menu_pos: tuple[float, float]
     menu_entries: list[tuple[str, str]]
     menu_width: int
@@ -427,6 +428,7 @@ class LDIcons:
         self.menu_visible = False
         self.menu_icon_index = -1
         self.menu_hover_index = -1
+        self.menu_disabled_actions = set()
         self.menu_pos = (0, 0)
         self.menu_entries = [
             ("open", _("Open")),
@@ -2025,7 +2027,7 @@ class LDIcons:
                 'name': filename, 'exec': f"pcmanfm '{filepath}'",
                 'comment': "Folder", 'icon_path': folder_icon, 'path': filepath
             }
-        mime, _ = mimetypes.guess_type(filepath)
+        mime, mime_encoding = mimetypes.guess_type(filepath)
 
         icon_candidates = []
         if mime:
@@ -2067,6 +2069,9 @@ class LDIcons:
 
         if not icon_path:
             icon_path = self.find_icon("text-x-generic")
+
+        if not icon_path:
+            icon_path = self.get_fallback_icon()
 
         return {
             'name': filename, 'exec': f"xdg-open '{filepath}'",
@@ -2310,7 +2315,7 @@ class LDIcons:
         """
         if not os.path.exists(self.desktop_path): return
         
-        files = [f for f in os.listdir(self.desktop_path) if not f.startswith('.')]
+        files = sorted(f for f in os.listdir(self.desktop_path) if not f.startswith('.'))
         print(f"DEBUG: Found files: {files}")
 
         step_x = max(1, int(self.spacing_x))
@@ -2360,21 +2365,80 @@ class LDIcons:
             return next_x, next_y
 
         def place_icon_without_overlap(icon_data, initial_x, initial_y):
-            candidate_x = int(initial_x)
-            candidate_y = int(initial_y)
-            max_x = max(0, self.width - self.icon_size)
-            max_y = max(0, self.height - self.icon_size)
-            max_tries = max(200, len(files) * 20)
+            text_height = int(self.icon_size * 0.9)
+            icon_block_height = self.icon_size + 2 + text_height
 
-            for _ in range(max_tries):
-                icon_data['x'] = max(0, min(candidate_x, max_x))
-                icon_data['y'] = max(0, min(candidate_y, max_y))
+            target_monitor = self._get_monitor_for_point(float(initial_x), float(initial_y))
+            if target_monitor is None:
+                target_monitor = self._get_monitor_for_point(float(start_x), float(start_y))
+
+            if target_monitor is not None and target_monitor.width > 0 and target_monitor.height > 0:
+                origin_x = max(int(target_monitor.x), int(start_x))
+                origin_y = max(int(target_monitor.y), int(start_y))
+                max_x = max(origin_x, int(target_monitor.x + target_monitor.width - self.icon_size))
+                max_y = max(origin_y, int(target_monitor.y + target_monitor.height - icon_block_height))
+            else:
+                origin_x = int(start_x)
+                origin_y = int(start_y)
+                max_x = max(origin_x, self.width - self.icon_size)
+                max_y = max(origin_y, self.height - icon_block_height)
+
+            step_x_local = max(1, int(step_x))
+            step_y_local = max(1, int(step_y))
+
+            x_slots = list(range(origin_x, max_x + 1, step_x_local))
+            y_slots = list(range(origin_y, max_y + 1, step_y_local))
+
+            if not x_slots:
+                x_slots = [max(0, min(int(initial_x), max_x))]
+            if not y_slots:
+                y_slots = [max(0, min(int(initial_y), max_y))]
+
+            if self.grid_direction == 'horizontal':
+                ordered_slots = [(xv, yv) for yv in y_slots for xv in x_slots]
+            else:
+                ordered_slots = [(xv, yv) for xv in x_slots for yv in y_slots]
+
+            target_x = max(0, min(int(initial_x), max_x))
+            target_y = max(0, min(int(initial_y), max_y))
+
+            start_index = 0
+            if ordered_slots:
+                start_index = min(
+                    range(len(ordered_slots)),
+                    key=lambda idx: abs(ordered_slots[idx][0] - target_x) + abs(ordered_slots[idx][1] - target_y),
+                )
+
+            search_order = ordered_slots[start_index:] + ordered_slots[:start_index]
+
+            for slot_x, slot_y in search_order:
+                icon_data['x'] = int(slot_x)
+                icon_data['y'] = int(slot_y)
                 self._update_icon_hitboxes(icon_data)
                 if not collides(icon_data):
                     return
-                candidate_x, candidate_y = next_slot(candidate_x, candidate_y, 1)
 
+            icon_data['x'] = target_x
+            icon_data['y'] = target_y
             self._update_icon_hitboxes(icon_data)
+
+        def icon_is_visible(icon_data):
+            ix = float(icon_data.get('x', 0))
+            iy = float(icon_data.get('y', 0))
+            text_height = int(self.icon_size * 0.9)
+            icon_block_height = self.icon_size + 2 + text_height
+            mon = self._get_monitor_for_point(ix, iy)
+            if mon is not None and mon.width > 0 and mon.height > 0:
+                min_x = float(mon.x)
+                min_y = float(mon.y)
+                max_x = float(mon.x + mon.width - self.icon_size)
+                max_y = float(mon.y + mon.height - icon_block_height)
+            else:
+                min_x = 0.0
+                min_y = 0.0
+                max_x = float(self.width - self.icon_size)
+                max_y = float(self.height - icon_block_height)
+            return (min_x <= ix <= max_x) and (min_y <= iy <= max_y)
 
         loaded_entries = []
 
@@ -2399,6 +2463,7 @@ class LDIcons:
         self.icons = []
 
         # 1) First apply saved positions (have priority)
+        saved_positions_reflowed = False
         for data, saved_pos in loaded_entries:
             if not saved_pos:
                 continue
@@ -2406,25 +2471,27 @@ class LDIcons:
             if resolved_pos is None:
                 continue
             place_icon_without_overlap(data, int(resolved_pos[0]), int(resolved_pos[1]))
+            if not icon_is_visible(data):
+                place_icon_without_overlap(data, start_x, start_y)
+                saved_positions_reflowed = True
             self.icons.append(data)
 
-        # 2) Then place new/unsaved icons on free grid slots
-        slot_x, slot_y = start_x, start_y
-        run_count = 0
+        # 2) Then place new/unsaved icons on first free grid slots
+        new_icons_added = False
         for data, saved_pos in loaded_entries:
             if saved_pos and self._resolve_saved_position(saved_pos) is not None:
                 continue
-            place_icon_without_overlap(data, slot_x, slot_y)
+            place_icon_without_overlap(data, start_x, start_y)
             self.icons.append(data)
-            run_count += 1
-            slot_x, slot_y = next_slot(slot_x, slot_y, run_count)
-            if self.grid_wrap_count > 0 and run_count >= self.grid_wrap_count:
-                run_count = 0
+            new_icons_added = True
 
         valid_indices = {index for index in self.selected_indices if 0 <= index < len(self.icons)}
         self.selected_indices = valid_indices
         if self.last_click_index >= len(self.icons):
             self.last_click_index = -1
+
+        if new_icons_added or saved_positions_reflowed:
+            self.save_icon_positions()
                     
         # After all icons are loaded, send the region to Wayland
         self.update_wayland_input_region()
@@ -2802,15 +2869,22 @@ class LDIcons:
         if hover_fill[3] <= 0:
             hover_fill = (0, 102, 204, 220)
         hover_text = self.text_hover if len(self.text_hover) == 4 else (255, 255, 255, 255)
+        disabled_text = (145, 145, 145, 255)
 
         for i, menu_entry in enumerate(self.menu_entries):
-            item = menu_entry[1]
+            action_key, item = menu_entry
             y = i * s_item_h
-            if i == self.menu_hover_index:
+            is_disabled = action_key in self.menu_disabled_actions
+            if i == self.menu_hover_index and not is_disabled:
                 draw.rectangle([1, y + 1, s_w - 2, y + s_item_h - 2], fill=hover_fill)
             if i > 0:
                 draw.line([(0, y), (s_w - 1, y)], fill=(70, 70, 70, 255), width=1)
-            text_color = hover_text if i == self.menu_hover_index else (255, 255, 255, 255)
+            if is_disabled:
+                text_color = disabled_text
+            elif i == self.menu_hover_index:
+                text_color = hover_text
+            else:
+                text_color = (255, 255, 255, 255)
             draw.text((int(8 * scale), y + int(7 * scale)), item, fill=text_color, font=font)
 
         raw_data = menu_canvas.tobytes("raw", "BGRA")
@@ -3473,6 +3547,7 @@ class LDIcons:
                     self.menu_visible = False
                     self.menu_icon_index = -1
                     self.menu_hover_index = -1
+                    self.menu_disabled_actions = set()
                     self._activate_rubber_band_grace()
                     self.update_input_regions()
                     self.refresh_desktop()
@@ -3493,6 +3568,11 @@ class LDIcons:
                     self.menu_icon_index = self.hover_index
                     self.menu_hover_index = -1
                     self.menu_pos = (self.mouse_x, self.mouse_y)
+                    if self.hover_index in self.selected_indices and self.selected_indices:
+                        menu_targets = [self.icons[index] for index in sorted(self.selected_indices) if 0 <= index < len(self.icons)]
+                    else:
+                        menu_targets = [icon]
+                    self.menu_disabled_actions = self._compute_menu_disabled_actions(menu_targets)
                     self.update_input_regions() 
                     self.refresh_desktop()
 
@@ -3520,6 +3600,7 @@ class LDIcons:
                 self.menu_visible = False
                 self.menu_icon_index = -1
                 self.menu_hover_index = -1
+                self.menu_disabled_actions = set()
                 self.left_pressed = True
                 self.pressed_icon_index = -1
                 self.dragging_index = -1
@@ -3636,6 +3717,7 @@ class LDIcons:
                 self.menu_visible = False
                 self.menu_icon_index = -1
                 self.menu_hover_index = -1
+                self.menu_disabled_actions = set()
                 self.update_input_regions()
                 self.refresh_desktop()
                 return
@@ -3650,14 +3732,26 @@ class LDIcons:
                 self.menu_visible = False
                 self.menu_icon_index = -1
                 self.menu_hover_index = -1
+                self.menu_disabled_actions = set()
                 self.update_input_regions()
                 self.refresh_desktop()
                 return
+
+            self.menu_disabled_actions = self._compute_menu_disabled_actions(target_icons)
 
             if len(target_icons) == 1:
                 print(f"Menu action: {action_label} on {target_icons[0]['name']}")
             else:
                 print(f"Menu action: {action_label} on {len(target_icons)} entries")
+
+            if action_key in self.menu_disabled_actions:
+                self.menu_visible = False
+                self.menu_icon_index = -1
+                self.menu_hover_index = -1
+                self.menu_disabled_actions = set()
+                self.update_input_regions()
+                self.refresh_desktop()
+                return
 
             if action_key == "open":
                 for icon in target_icons:
@@ -3678,6 +3772,7 @@ class LDIcons:
         self.menu_visible = False
         self.menu_icon_index = -1
         self.menu_hover_index = -1
+        self.menu_disabled_actions = set()
         self.update_input_regions()
         self.refresh_desktop()
 
@@ -3770,6 +3865,23 @@ class LDIcons:
         """Opens configured desktop folder in file manager."""
         subprocess.Popen(["xdg-open", self.desktop_path], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    def _is_icon_symlink(self, icon):
+        """Returns True when icon path is a symbolic link."""
+        target_path = icon.get("path", "")
+        return bool(target_path) and os.path.islink(target_path)
+
+    def _is_icon_read_only(self, icon):
+        """Returns True when icon path exists and is not writable by current user."""
+        target_path = icon.get("path", "")
+        return bool(target_path) and os.path.exists(target_path) and (not os.access(target_path, os.W_OK))
+
+    def _compute_menu_disabled_actions(self, target_icons):
+        """Returns context-menu action keys that should be disabled for the selected targets."""
+        disabled = set()
+        if any(self._is_icon_read_only(icon) for icon in target_icons):
+            disabled.add("delete")
+        return disabled
+
     def _is_text_file(self, path):
         """
         Returns whether a file should be treated as text.
@@ -3787,7 +3899,7 @@ class LDIcons:
         if not os.path.isfile(path):
             return False
 
-        mime, _ = mimetypes.guess_type(path)
+        mime, mime_encoding = mimetypes.guess_type(path)
         if mime and mime.startswith("text/"):
             return True
 
@@ -3951,7 +4063,7 @@ class LDIcons:
         elif target_path.endswith(".desktop"):
             item_type = "Desktop Entry"
         else:
-            mime, _ = mimetypes.guess_type(target_path)
+            mime, mime_encoding = mimetypes.guess_type(target_path)
             item_type = mime or "File"
 
         message = (
