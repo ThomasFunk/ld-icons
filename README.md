@@ -141,6 +141,20 @@ rubber_band_grace_ms = 700
 layer = bottom
 ```
 
+### Localization (gettext)
+
+Menu labels and related dialog texts use gettext catalogs.
+
+- Domain: `ldicons`
+- Locale directory: `locale/<lang>/LC_MESSAGES/`
+- Source catalog example: `locale/de/LC_MESSAGES/ldicons.po`
+
+Compile `.po` to `.mo`:
+
+```sh
+msgfmt -o locale/de/LC_MESSAGES/ldicons.mo locale/de/LC_MESSAGES/ldicons.po
+```
+
 Notes:
 - If modifier handling is unreliable in your compositor, try `rubber_band_modifier = none` and a dedicated button (for example `middle`).
 - A short post-interaction defocus effect on empty-desktop click can happen while grace is active; reduce `rubber_band_grace_ms` if this feels too long.

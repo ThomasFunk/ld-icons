@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 __author__ = 'Thomas Funk'
-__coauthor__ = 'Github Copilot & Gemini'
+__coauthors__ = 'Github Copilot & Gemini'
 __date__ = "2026/03/05"
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 import os
 import sys
@@ -20,6 +20,7 @@ import mimetypes
 import io
 import json
 import locale
+import gettext
 import signal
 import select
 import re
@@ -44,6 +45,19 @@ from protocols.wayland.wl_output import WlOutput
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/ldicons/ldicons.conf")
 DEFAULT_POSITIONS_PATH = os.path.expanduser("~/.config/ldicons/icon_positions.json")
 DEFAULT_LOG_PATH = os.path.expanduser("~/.config/ldicons/ldicons.log")
+LOCALE_DIR = os.path.join(os.path.dirname(__file__), "locale")
+
+
+def _init_gettext():
+    """Initializes gettext translation function for this module."""
+    try:
+        translator = gettext.translation("ldicons", localedir=LOCALE_DIR, fallback=True)
+        return translator.gettext
+    except Exception:
+        return lambda message: message
+
+
+_ = _init_gettext()
 
 
 class TeeStream:
@@ -245,7 +259,7 @@ class LDIcons:
     menu_icon_index: int
     menu_hover_index: int
     menu_pos: tuple[float, float]
-    menu_items: list[str]
+    menu_entries: list[tuple[str, str]]
     menu_width: int
     menu_item_height: int
 
@@ -414,14 +428,14 @@ class LDIcons:
         self.menu_icon_index = -1
         self.menu_hover_index = -1
         self.menu_pos = (0, 0)
-        self.menu_items = [
-            "Open",
-            "Open Desktop Folder",
-            "Edit",
-            "Rename",
-            "Create",
-            "Properties",
-            "Delete",
+        self.menu_entries = [
+            ("open", _("Open")),
+            ("open_desktop_folder", _("Open Desktop Folder")),
+            ("edit", _("Edit")),
+            ("rename", _("Rename")),
+            ("create", _("Create")),
+            ("properties", _("Properties")),
+            ("delete", _("Delete")),
         ]
         self.menu_width = 220
         self.menu_item_height = 30
@@ -2777,7 +2791,7 @@ class LDIcons:
 
         s_w = max(1, int(self.menu_width * scale))
         s_item_h = max(1, int(self.menu_item_height * scale))
-        s_h = s_item_h * len(self.menu_items)
+        s_h = s_item_h * len(self.menu_entries)
 
         menu_canvas = Image.new("RGBA", (s_w, s_h), (26, 26, 26, 235))
         draw = ImageDraw.Draw(menu_canvas)
@@ -2789,7 +2803,8 @@ class LDIcons:
             hover_fill = (0, 102, 204, 220)
         hover_text = self.text_hover if len(self.text_hover) == 4 else (255, 255, 255, 255)
 
-        for i, item in enumerate(self.menu_items):
+        for i, menu_entry in enumerate(self.menu_entries):
+            item = menu_entry[1]
             y = i * s_item_h
             if i == self.menu_hover_index:
                 draw.rectangle([1, y + 1, s_w - 2, y + s_item_h - 2], fill=hover_fill)
@@ -3331,13 +3346,13 @@ class LDIcons:
         if self.menu_visible:
             menu_x, menu_y = self.menu_pos
             menu_w = float(self.menu_width)
-            menu_h = float(len(self.menu_items) * self.menu_item_height)
+            menu_h = float(len(self.menu_entries) * self.menu_item_height)
             old_menu_hover = self.menu_hover_index
 
             if menu_x <= self.mouse_x < (menu_x + menu_w) and menu_y <= self.mouse_y < (menu_y + menu_h):
                 relative_y = self.mouse_y - menu_y
                 self.menu_hover_index = int(relative_y // self.menu_item_height)
-                if not (0 <= self.menu_hover_index < len(self.menu_items)):
+                if not (0 <= self.menu_hover_index < len(self.menu_entries)):
                     self.menu_hover_index = -1
             else:
                 self.menu_hover_index = -1
@@ -3454,7 +3469,7 @@ class LDIcons:
                 # Check whether click is outside menu -> close menu
                 mx, my = self.mouse_x, self.mouse_y
                 if not (self.menu_pos[0] <= mx <= self.menu_pos[0] + self.menu_width and
-                        self.menu_pos[1] <= my <= self.menu_pos[1] + (len(self.menu_items) * self.menu_item_height)):
+                    self.menu_pos[1] <= my <= self.menu_pos[1] + (len(self.menu_entries) * self.menu_item_height)):
                     self.menu_visible = False
                     self.menu_icon_index = -1
                     self.menu_hover_index = -1
@@ -3608,8 +3623,8 @@ class LDIcons:
         relative_y = my - self.menu_pos[1]
         item_index = int(relative_y // self.menu_item_height)
         
-        if 0 <= item_index < len(self.menu_items):
-            action = self.menu_items[item_index]
+        if 0 <= item_index < len(self.menu_entries):
+            action_key, action_label = self.menu_entries[item_index]
             if 0 <= self.menu_icon_index < len(self.icons):
                 base_index = self.menu_icon_index
             elif 0 <= self.hover_index < len(self.icons):
@@ -3640,24 +3655,24 @@ class LDIcons:
                 return
 
             if len(target_icons) == 1:
-                print(f"Menu action: {action} on {target_icons[0]['name']}")
+                print(f"Menu action: {action_label} on {target_icons[0]['name']}")
             else:
-                print(f"Menu action: {action} on {len(target_icons)} entries")
+                print(f"Menu action: {action_label} on {len(target_icons)} entries")
 
-            if action == "Open":
+            if action_key == "open":
                 for icon in target_icons:
                     self.execute_icon(icon)
-            elif action == "Open Desktop Folder":
+            elif action_key == "open_desktop_folder":
                 self._open_desktop_folder()
-            elif action == "Edit":
+            elif action_key == "edit":
                 self._handle_edit_action(target_icons)
-            elif action == "Rename":
+            elif action_key == "rename":
                 self._handle_rename_action(target_icons)
-            elif action == "Create":
-                self._show_message("Create", "Create action is currently a placeholder.")
-            elif action == "Properties":
+            elif action_key == "create":
+                self._show_message(_("Create"), _("Create action is currently a placeholder."))
+            elif action_key == "properties":
                 self._show_properties_dialog(target_icons)
-            elif action == "Delete":
+            elif action_key == "delete":
                 self._handle_delete_action(target_icons)
             
         self.menu_visible = False
@@ -3827,7 +3842,7 @@ class LDIcons:
             shown = ", ".join(non_text_names[:5])
             if len(non_text_names) > 5:
                 shown += ", ..."
-            self._show_message("Edit", f"Not a text file: {shown}")
+            self._show_message(_("Edit"), _("Not a text file: {items}").format(items=shown))
 
     def _handle_rename_action(self, icons):
         """
@@ -3839,35 +3854,35 @@ class LDIcons:
             Target icon records.
         """
         if len(icons) != 1:
-            self._show_message("Rename", "Please select exactly one item to rename.")
+            self._show_message(_("Rename"), _("Please select exactly one item to rename."))
             return
 
         icon = icons[0]
         old_path = icon.get("path", "")
         if not old_path or not os.path.exists(old_path):
-            self._show_message("Rename", "Selected item no longer exists.")
+            self._show_message(_("Rename"), _("Selected item no longer exists."))
             return
 
         old_name = os.path.basename(old_path)
-        new_name = self._prompt_text("Rename", "Enter new name:", old_name)
+        new_name = self._prompt_text(_("Rename"), _("Enter new name:"), old_name)
         if new_name is None:
             return
         new_name = new_name.strip()
         if not new_name or new_name == old_name:
             return
         if "/" in new_name:
-            self._show_message("Rename", "Name must not contain '/'.")
+            self._show_message(_("Rename"), _("Name must not contain '/'."))
             return
 
         new_path = os.path.join(os.path.dirname(old_path), new_name)
         if os.path.exists(new_path):
-            self._show_message("Rename", "Target name already exists.")
+            self._show_message(_("Rename"), _("Target name already exists."))
             return
 
         try:
             os.rename(old_path, new_path)
         except Exception as error:
-            self._show_message("Rename", f"Rename failed: {error}")
+            self._show_message(_("Rename"), _("Rename failed: {error}").format(error=error))
             return
 
         old_key = self._icon_key(icon)
@@ -3913,13 +3928,13 @@ class LDIcons:
             Target icon records.
         """
         if len(icons) != 1:
-            self._show_message("Properties", "Please select exactly one item.")
+            self._show_message(_("Properties"), _("Please select exactly one item."))
             return
 
         icon = icons[0]
         target_path = icon.get("path", "")
         if not target_path or not os.path.exists(target_path):
-            self._show_message("Properties", "Selected item no longer exists.")
+            self._show_message(_("Properties"), _("Selected item no longer exists."))
             return
 
         try:
@@ -3928,7 +3943,7 @@ class LDIcons:
             modified = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat_info.st_mtime))
             permissions = oct(stat_info.st_mode & 0o777)
         except Exception as error:
-            self._show_message("Properties", f"Could not read file metadata: {error}")
+            self._show_message(_("Properties"), _("Could not read file metadata: {error}").format(error=error))
             return
 
         if os.path.isdir(target_path):
@@ -3947,7 +3962,7 @@ class LDIcons:
             f"Modified: {modified}\n"
             f"Permissions: {permissions}"
         )
-        self._show_message("Properties", message)
+        self._show_message(_("Properties"), message)
 
     def _handle_delete_action(self, icons):
         """
@@ -3963,11 +3978,11 @@ class LDIcons:
 
         if len(icons) == 1:
             display_name = icons[0].get("name", os.path.basename(icons[0].get("path", "")) or "item")
-            confirm_text = f"Delete '{display_name}' permanently?"
+            confirm_text = _("Delete '{name}' permanently?").format(name=display_name)
         else:
-            confirm_text = f"Delete {len(icons)} selected items permanently?"
+            confirm_text = _("Delete {count} selected items permanently?").format(count=len(icons))
 
-        if not self._confirm_action("Delete", confirm_text):
+        if not self._confirm_action(_("Delete"), confirm_text):
             return
 
         removed_any = False
@@ -3998,7 +4013,7 @@ class LDIcons:
             shown = "\n".join(failures[:5])
             if len(failures) > 5:
                 shown += "\n..."
-            self._show_message("Delete", f"Some items could not be deleted:\n{shown}")
+            self._show_message(_("Delete"), _("Some items could not be deleted:\n{items}").format(items=shown))
 
     # --- Start / Runtime ---
     def execute_icon(self, icon):
