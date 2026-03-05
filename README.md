@@ -4,16 +4,22 @@
 
 ## Features
 
-- [X] Show content from a folder as Icons on the Desktop
+- [X] Show content from the Desktop folder as Icons on the Desktop
 - [X] Use xdg_user_dir to use the default desktop directory
 - [X] Start default application for the active file
 - [X] Update the Icons on changes to the directory (added/removed files)
-- [X] Drag and Drop Files from/to the Desktop
+- [X] Drag and Drop (reposition icons on desktop grid)
 - [X] Launching Apps from the Desktop
 - [X] Multi-Monitor Support
+- [X] Rubber-band multi-select with group move
+- [X] Context menu: Open / Edit / Rename / Delete / Properties
+- [X] Sort submenu (Name / Date / Clean up Grid)
+- [X] Show hidden files toggle (persistent)
+- [X] Status overlays (read-only / symlink, custom theme fallback)
 - [ ] Thumbnails for Images/Documents
-- [X] Sort Rows of List Store based on Name/Type/Date
-- [X] Context-Menu for creating files
+- [ ] Sort Rows of List Store based on Name/Type/Date (Type pending)
+- [ ] Context-Menu for creating files (real create action pending)
+- [ ] File drag-and-drop between desktop and other applications (Wayland data-device DnD)
 
 ## Supported Desktops
 
