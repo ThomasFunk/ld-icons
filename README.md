@@ -12,8 +12,8 @@
 - [X] Launching Apps from the Desktop
 - [X] Multi-Monitor Support
 - [ ] Thumbnails for Images/Documents
-- [ ] Sort Rows of List Store based on Name/Type/Date
-- [ ] Context-Menu for creating files
+- [X] Sort Rows of List Store based on Name/Type/Date
+- [X] Context-Menu for creating files
 
 ## Supported Desktops
 
