@@ -141,6 +141,18 @@ rubber_band_grace_ms = 700
 layer = bottom
 ```
 
+Context-menu actions now also include a `Sort ▶` submenu:
+
+- `Sort by Name` (alphabetical)
+- `Sort by Date` (newest first)
+- `Clean up Grid` (re-snaps all icons to consecutive grid slots)
+
+Hovering `Sort` opens the submenu automatically to the right.
+These actions are available from the icon context menu.
+
+The icon context menu also provides `Show hidden Files` as a checkbox toggle.
+When enabled, dotfiles are included in the desktop icon list and persisted to config (`show_hidden_files = true`).
+
 Custom status overlays (read-only / symlink) can be configured with a custom emblem directory:
 
 ```ini

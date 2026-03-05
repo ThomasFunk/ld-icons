@@ -12,6 +12,14 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- Icon context menu now includes a hover-open `Sort` submenu (`Sort ▶`) with `Sort by Name`, `Sort by Date`, and `Clean up Grid`.
+- Icon context menu now includes `Show hidden Files` as a checkbox toggle.
+
+### Changed
+- Grid helper actions now persist updated icon positions immediately.
+- Hidden file visibility is now persisted via `show_hidden_files` in `ldicons.conf`.
+
 ## [0.4.2] - 2026-03-05
 
 ### Added
