@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-__author__ = 'Thomas Funk, Github Copilot & Gemini'
-__date__ = "2026/03/04"
-__version__ = "0.3.0"
+__author__ = 'Thomas Funk'
+__coauthor__ = 'Github Copilot & Gemini'
+__date__ = "2026/03/05"
+__version__ = "0.4.0"
 
 import os
 import sys
@@ -242,6 +243,7 @@ class LDIcons:
 
     menu_visible: bool
     menu_icon_index: int
+    menu_hover_index: int
     menu_pos: tuple[float, float]
     menu_items: list[str]
     menu_width: int
@@ -410,9 +412,18 @@ class LDIcons:
         # Context menu (placeholder, as implementation in Wayland is complex)
         self.menu_visible = False
         self.menu_icon_index = -1
+        self.menu_hover_index = -1
         self.menu_pos = (0, 0)
-        self.menu_items = ["Open", "Open with PCManFM", "Properties", "Delete"]
-        self.menu_width = 160
+        self.menu_items = [
+            "Open",
+            "Open Desktop Folder",
+            "Edit",
+            "Rename",
+            "Create",
+            "Properties",
+            "Delete",
+        ]
+        self.menu_width = 220
         self.menu_item_height = 30
         
         # Initial config load
@@ -2773,12 +2784,19 @@ class LDIcons:
         draw.rectangle([0, 0, s_w - 1, s_h - 1], outline=(90, 90, 90, 255))
 
         font = self.get_ui_font(max(9, int(10 * scale)))
+        hover_fill = self.hover_bg if len(self.hover_bg) == 4 else (0, 102, 204, 220)
+        if hover_fill[3] <= 0:
+            hover_fill = (0, 102, 204, 220)
+        hover_text = self.text_hover if len(self.text_hover) == 4 else (255, 255, 255, 255)
 
         for i, item in enumerate(self.menu_items):
             y = i * s_item_h
+            if i == self.menu_hover_index:
+                draw.rectangle([1, y + 1, s_w - 2, y + s_item_h - 2], fill=hover_fill)
             if i > 0:
                 draw.line([(0, y), (s_w - 1, y)], fill=(70, 70, 70, 255), width=1)
-            draw.text((int(8 * scale), y + int(7 * scale)), item, fill=(255, 255, 255, 255), font=font)
+            text_color = hover_text if i == self.menu_hover_index else (255, 255, 255, 255)
+            draw.text((int(8 * scale), y + int(7 * scale)), item, fill=text_color, font=font)
 
         raw_data = menu_canvas.tobytes("raw", "BGRA")
         start_x = int(self.menu_pos[0] * scale)
@@ -3310,6 +3328,24 @@ class LDIcons:
         if self.input_debug:
             print(f"🖱️ motion @ {self.mouse_x:.1f},{self.mouse_y:.1f}")
 
+        if self.menu_visible:
+            menu_x, menu_y = self.menu_pos
+            menu_w = float(self.menu_width)
+            menu_h = float(len(self.menu_items) * self.menu_item_height)
+            old_menu_hover = self.menu_hover_index
+
+            if menu_x <= self.mouse_x < (menu_x + menu_w) and menu_y <= self.mouse_y < (menu_y + menu_h):
+                relative_y = self.mouse_y - menu_y
+                self.menu_hover_index = int(relative_y // self.menu_item_height)
+                if not (0 <= self.menu_hover_index < len(self.menu_items)):
+                    self.menu_hover_index = -1
+            else:
+                self.menu_hover_index = -1
+
+            if self.menu_hover_index != old_menu_hover:
+                self.refresh_desktop()
+            return
+
         if self.left_pressed and self.rubber_band_active:
             self.rubber_band_end = (self.mouse_x, self.mouse_y)
             changed = self._update_rubber_band_selection()
@@ -3421,6 +3457,7 @@ class LDIcons:
                         self.menu_pos[1] <= my <= self.menu_pos[1] + (len(self.menu_items) * self.menu_item_height)):
                     self.menu_visible = False
                     self.menu_icon_index = -1
+                    self.menu_hover_index = -1
                     self._activate_rubber_band_grace()
                     self.update_input_regions()
                     self.refresh_desktop()
@@ -3439,6 +3476,7 @@ class LDIcons:
                         self.last_click_index = self.hover_index
                     self.menu_visible = True
                     self.menu_icon_index = self.hover_index
+                    self.menu_hover_index = -1
                     self.menu_pos = (self.mouse_x, self.mouse_y)
                     self.update_input_regions() 
                     self.refresh_desktop()
@@ -3466,6 +3504,7 @@ class LDIcons:
             elif self._is_rubber_band_trigger(button, left_buttons, middle_buttons, right_buttons):
                 self.menu_visible = False
                 self.menu_icon_index = -1
+                self.menu_hover_index = -1
                 self.left_pressed = True
                 self.pressed_icon_index = -1
                 self.dragging_index = -1
@@ -3581,6 +3620,7 @@ class LDIcons:
             if base_index == -1:
                 self.menu_visible = False
                 self.menu_icon_index = -1
+                self.menu_hover_index = -1
                 self.update_input_regions()
                 self.refresh_desktop()
                 return
@@ -3594,6 +3634,7 @@ class LDIcons:
             if not target_icons:
                 self.menu_visible = False
                 self.menu_icon_index = -1
+                self.menu_hover_index = -1
                 self.update_input_regions()
                 self.refresh_desktop()
                 return
@@ -3606,33 +3647,358 @@ class LDIcons:
             if action == "Open":
                 for icon in target_icons:
                     self.execute_icon(icon)
-            elif action == "Open with PCManFM":
-                opened_dirs = set()
-                for icon in target_icons:
-                    directory = os.path.dirname(icon['path'])
-                    if directory and directory not in opened_dirs:
-                        opened_dirs.add(directory)
-                        subprocess.Popen(["pcmanfm", directory])
+            elif action == "Open Desktop Folder":
+                self._open_desktop_folder()
+            elif action == "Edit":
+                self._handle_edit_action(target_icons)
+            elif action == "Rename":
+                self._handle_rename_action(target_icons)
+            elif action == "Create":
+                self._show_message("Create", "Create action is currently a placeholder.")
+            elif action == "Properties":
+                self._show_properties_dialog(target_icons)
             elif action == "Delete":
-                removed_any = False
-                for icon in target_icons:
-                    if os.path.exists(icon['path']):
-                        os.remove(icon['path'])
-                        removed_any = True
-                    removed_key = self._icon_key(icon)
-                    if removed_key in self.icon_positions:
-                        del self.icon_positions[removed_key]
-                        removed_any = True
-                if removed_any:
-                    self.save_icon_positions()
-                    self.load_desktop_entries()
-                    self.selected_indices = set()
-                    self.last_click_index = -1
+                self._handle_delete_action(target_icons)
             
         self.menu_visible = False
         self.menu_icon_index = -1
+        self.menu_hover_index = -1
         self.update_input_regions()
         self.refresh_desktop()
+
+    def _show_message(self, title, message):
+        """
+        Shows an informational message using available dialog tools.
+
+        Parameters
+        ----------
+        title : str
+            Dialog title.
+        message : str
+            Dialog message content.
+        """
+        if shutil.which("zenity"):
+            subprocess.run(["zenity", "--info", "--title", title, "--text", message], check=False)
+            return
+        if shutil.which("kdialog"):
+            subprocess.run(["kdialog", "--title", title, "--msgbox", message], check=False)
+            return
+        print(f"ℹ️ {title}: {message}")
+
+    def _confirm_action(self, title, message):
+        """
+        Asks the user to confirm an action.
+
+        Parameters
+        ----------
+        title : str
+            Dialog title.
+        message : str
+            Confirmation question.
+
+        Returns
+        -------
+        bool:
+            True if user confirmed, else False.
+        """
+        if shutil.which("zenity"):
+            result = subprocess.run(["zenity", "--question", "--title", title, "--text", message], check=False)
+            return result.returncode == 0
+        if shutil.which("kdialog"):
+            result = subprocess.run(["kdialog", "--title", title, "--yesno", message], check=False)
+            return result.returncode == 0
+        print(f"⚠️ {title}: {message}")
+        return False
+
+    def _prompt_text(self, title, message, default_text=""):
+        """
+        Prompts for a single text value.
+
+        Parameters
+        ----------
+        title : str
+            Dialog title.
+        message : str
+            Prompt message.
+        default_text : str
+            Initial input value.
+
+        Returns
+        -------
+        str | None:
+            Entered text or None if canceled/unavailable.
+        """
+        if shutil.which("zenity"):
+            result = subprocess.run(
+                ["zenity", "--entry", "--title", title, "--text", message, "--entry-text", default_text],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                return (result.stdout or "").strip()
+            return None
+        if shutil.which("kdialog"):
+            result = subprocess.run(
+                ["kdialog", "--title", title, "--inputbox", message, default_text],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                return (result.stdout or "").strip()
+            return None
+        print(f"⚠️ Rename dialog unavailable: {message}")
+        return None
+
+    def _open_desktop_folder(self):
+        """Opens configured desktop folder in file manager."""
+        subprocess.Popen(["xdg-open", self.desktop_path], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _is_text_file(self, path):
+        """
+        Returns whether a file should be treated as text.
+
+        Parameters
+        ----------
+        path : str
+            File path to inspect.
+
+        Returns
+        -------
+        bool:
+            True if file is likely text, else False.
+        """
+        if not os.path.isfile(path):
+            return False
+
+        mime, _ = mimetypes.guess_type(path)
+        if mime and mime.startswith("text/"):
+            return True
+
+        text_extensions = {
+            ".txt", ".md", ".rst", ".py", ".json", ".yaml", ".yml", ".ini", ".conf",
+            ".log", ".csv", ".toml", ".xml", ".html", ".css", ".js", ".ts", ".sh", ".desktop",
+        }
+        if os.path.splitext(path)[1].lower() in text_extensions:
+            return True
+
+        try:
+            with open(path, "rb") as file_obj:
+                sample = file_obj.read(2048)
+            return b"\x00" not in sample
+        except Exception:
+            return False
+
+    def _open_in_editor(self, path):
+        """
+        Opens a file in configured editor.
+
+        Parameters
+        ----------
+        path : str
+            Target file path.
+        """
+        editor_cmd = (os.environ.get("VISUAL") or os.environ.get("EDITOR") or "").strip()
+        if editor_cmd:
+            args = shlex.split(editor_cmd) + [path]
+        else:
+            args = ["xdg-open", path]
+        subprocess.Popen(args, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _handle_edit_action(self, icons):
+        """
+        Opens selected text files in editor and reports non-text entries.
+
+        Parameters
+        ----------
+        icons : list[dict]
+            Target icon records.
+        """
+        non_text_names = []
+        for icon in icons:
+            target_path = icon.get("path", "")
+            if self._is_text_file(target_path):
+                self._open_in_editor(target_path)
+            else:
+                non_text_names.append(icon.get("name", os.path.basename(target_path) or "Unknown"))
+
+        if non_text_names:
+            shown = ", ".join(non_text_names[:5])
+            if len(non_text_names) > 5:
+                shown += ", ..."
+            self._show_message("Edit", f"Not a text file: {shown}")
+
+    def _handle_rename_action(self, icons):
+        """
+        Renames a single selected file/folder.
+
+        Parameters
+        ----------
+        icons : list[dict]
+            Target icon records.
+        """
+        if len(icons) != 1:
+            self._show_message("Rename", "Please select exactly one item to rename.")
+            return
+
+        icon = icons[0]
+        old_path = icon.get("path", "")
+        if not old_path or not os.path.exists(old_path):
+            self._show_message("Rename", "Selected item no longer exists.")
+            return
+
+        old_name = os.path.basename(old_path)
+        new_name = self._prompt_text("Rename", "Enter new name:", old_name)
+        if new_name is None:
+            return
+        new_name = new_name.strip()
+        if not new_name or new_name == old_name:
+            return
+        if "/" in new_name:
+            self._show_message("Rename", "Name must not contain '/'.")
+            return
+
+        new_path = os.path.join(os.path.dirname(old_path), new_name)
+        if os.path.exists(new_path):
+            self._show_message("Rename", "Target name already exists.")
+            return
+
+        try:
+            os.rename(old_path, new_path)
+        except Exception as error:
+            self._show_message("Rename", f"Rename failed: {error}")
+            return
+
+        old_key = self._icon_key(icon)
+        if old_key in self.icon_positions:
+            self.icon_positions[new_path] = self.icon_positions.pop(old_key)
+
+        self.load_desktop_entries()
+        self.save_icon_positions()
+        self.selected_indices = set()
+        self.last_click_index = -1
+
+    def _format_size(self, num_bytes):
+        """
+        Formats byte count to human-readable string.
+
+        Parameters
+        ----------
+        num_bytes : int
+            Size in bytes.
+
+        Returns
+        -------
+        str:
+            Human-readable size string.
+        """
+        size = float(max(0, int(num_bytes)))
+        units = ["B", "KB", "MB", "GB", "TB"]
+        idx = 0
+        while size >= 1024.0 and idx < len(units) - 1:
+            size /= 1024.0
+            idx += 1
+        if idx == 0:
+            return f"{int(size)} {units[idx]}"
+        return f"{size:.1f} {units[idx]}"
+
+    def _show_properties_dialog(self, icons):
+        """
+        Shows a basic properties dialog for a single item.
+
+        Parameters
+        ----------
+        icons : list[dict]
+            Target icon records.
+        """
+        if len(icons) != 1:
+            self._show_message("Properties", "Please select exactly one item.")
+            return
+
+        icon = icons[0]
+        target_path = icon.get("path", "")
+        if not target_path or not os.path.exists(target_path):
+            self._show_message("Properties", "Selected item no longer exists.")
+            return
+
+        try:
+            stat_info = os.stat(target_path)
+            size_text = self._format_size(stat_info.st_size)
+            modified = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat_info.st_mtime))
+            permissions = oct(stat_info.st_mode & 0o777)
+        except Exception as error:
+            self._show_message("Properties", f"Could not read file metadata: {error}")
+            return
+
+        if os.path.isdir(target_path):
+            item_type = "Folder"
+        elif target_path.endswith(".desktop"):
+            item_type = "Desktop Entry"
+        else:
+            mime, _ = mimetypes.guess_type(target_path)
+            item_type = mime or "File"
+
+        message = (
+            f"Name: {os.path.basename(target_path)}\n"
+            f"Path: {target_path}\n"
+            f"Type: {item_type}\n"
+            f"Size: {size_text}\n"
+            f"Modified: {modified}\n"
+            f"Permissions: {permissions}"
+        )
+        self._show_message("Properties", message)
+
+    def _handle_delete_action(self, icons):
+        """
+        Deletes selected files/folders after confirmation.
+
+        Parameters
+        ----------
+        icons : list[dict]
+            Target icon records.
+        """
+        if not icons:
+            return
+
+        if len(icons) == 1:
+            display_name = icons[0].get("name", os.path.basename(icons[0].get("path", "")) or "item")
+            confirm_text = f"Delete '{display_name}' permanently?"
+        else:
+            confirm_text = f"Delete {len(icons)} selected items permanently?"
+
+        if not self._confirm_action("Delete", confirm_text):
+            return
+
+        removed_any = False
+        failures = []
+
+        for icon in icons:
+            target_path = icon.get("path", "")
+            try:
+                if os.path.isdir(target_path) and not os.path.islink(target_path):
+                    shutil.rmtree(target_path)
+                elif os.path.exists(target_path):
+                    os.remove(target_path)
+                removed_any = True
+            except Exception as error:
+                failures.append(f"{target_path}: {error}")
+
+            removed_key = self._icon_key(icon)
+            if removed_key in self.icon_positions:
+                del self.icon_positions[removed_key]
+
+        if removed_any:
+            self.load_desktop_entries()
+            self.save_icon_positions()
+            self.selected_indices = set()
+            self.last_click_index = -1
+
+        if failures:
+            shown = "\n".join(failures[:5])
+            if len(failures) > 5:
+                shown += "\n..."
+            self._show_message("Delete", f"Some items could not be deleted:\n{shown}")
 
     # --- Start / Runtime ---
     def execute_icon(self, icon):
