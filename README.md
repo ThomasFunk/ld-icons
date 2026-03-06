@@ -8,7 +8,7 @@ It renders files from your Desktop folder directly onto a layer-shell surface, k
 positions persistent across restarts, and supports practical desktop interactions like
 multi-select, drag-and-drop grid placement, context-menu actions, sorting, and status overlays.
 
-Why ld-icons? Aren't there enough already? The short answer is: Yes and no... The major desktop environments have it, but it brings with it too many dependencies.
+Why ld-icons? Aren't there enough options already? The short answer is: yes and no. Major desktop environments have desktop icons, but they often bring too many dependencies.
 
 For compositors like labwc, sway, etc., there are a few options:
 
@@ -18,15 +18,15 @@ dicons - https://github.com/Geronymos/desktop-icons - a C/C++ tool showing files
 
 nwg-drawer/nwg-wrapper - https://github.com/nwg-piotr/nwg-drawer - From the nwg-shell family. With nwg-wrapper, you can display scripts or icons in fixed positions on the desktop.
 
-Since my project (labwc DE) is intended to be lean, is based on GTK, and shouldn't include any compilable tools, pcmanfm-qt was ruled out due to its reliance on Qt, and nwg-drawer/nwg-wrapper was ruled out because of the mix of too many programming languages ​​and the absence of these packages in some major distributions.
+Since my project (labwc DE) is intended to be lean, based on GTK, and free of additional compiled tools, pcmanfm-qt was ruled out because of its Qt dependency. nwg-drawer/nwg-wrapper was ruled out because it mixes several languages and is missing from some major distributions.
 
-The only remaining option was dicons by Geronymos, which unfortunately isn't available in any distribution, isn't feature-complete, and requires compilation.
+The only remaining option was dicons by Geronymos, which unfortunately is not available in distributions, is not feature-complete, and requires compilation.
 
-For this reason, I decided to write dicons in Python. I used Google's Gemini, which helped me with the basics (connecting to the Wayland server, displaying the files, and gathering features), and GitHub's Copilot, which helped with debugging and improvements.
+For this reason, I decided to write an alternative in Python. I used Google's Gemini for the basics (connecting to the Wayland server, rendering files, and collecting features), and GitHub Copilot for debugging and improvements.
 
 The result is a tool that has all the features of dicons plus extensions like sorting, multi-file moves, a configuration file with numerous settings, and command-line options.
 
-So far, it has only been tested within a wlroots window and only in the project environment. Nevertheless, the performance was quite acceptable, even with full debug output.
+So far, it has only been tested in a wlroots-based environment and within the project setup. Even with full debug output, performance was quite acceptable.
 
 ## Features
 
@@ -115,8 +115,8 @@ make PREFIX="$HOME/.local" uninstall
 ldicons
 ```
 
-It's recommended to have this automatically start with your Wayland compositor.
-For Sway append the following to your config file `.config/sway/config `:
+It's recommended to start this automatically with your Wayland compositor.
+For Sway, append the following to your config file `.config/sway/config`:
 ```
 exec ldicons
 ```
@@ -205,7 +205,7 @@ Context-menu actions now also include a `Sort ▶` submenu:
 Hovering `Sort` opens the submenu automatically to the right.
 These actions are available from the icon context menu.
 
-The icon context menu also provides `Show hidden Files` as a checkbox toggle.
+The icon context menu also provides `Show hidden files` as a checkbox toggle.
 When enabled, dotfiles are included in the desktop icon list and persisted to config (`show_hidden_files = true`).
 
 Custom status overlays (read-only / symlink) can be configured with a custom emblem directory:
@@ -262,7 +262,7 @@ positions_file = ./icon_positions.json
 
 ### Development
 
-This tool isn't fully tested. Every one who wants to help is very welcome ^^
+This tool is not fully tested yet. Everyone who wants to help is very welcome. ^^
 
 ## License
 
