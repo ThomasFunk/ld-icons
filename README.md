@@ -8,6 +8,26 @@ It renders files from your Desktop folder directly onto a layer-shell surface, k
 positions persistent across restarts, and supports practical desktop interactions like
 multi-select, drag-and-drop grid placement, context-menu actions, sorting, and status overlays.
 
+Why ld-icons? Aren't there enough already? The short answer is: Yes and no... The major desktop environments have it, but it brings with it too many dependencies.
+
+For compositors like labwc, sway, etc., there are a few options:
+
+pcmanfm-qt - The file manager from the LXQt project is the spiritual successor to the classic pcmanfm and works well under Wayland for managing the desktop.
+
+dicons - https://github.com/Geronymos/desktop-icons - a C/C++ tool showing files from a directory on the desktop. Basic functionality is available.
+
+nwg-drawer/nwg-wrapper - https://github.com/nwg-piotr/nwg-drawer - From the nwg-shell family. With nwg-wrapper, you can display scripts or icons in fixed positions on the desktop.
+
+Since my project (labwc DE) is intended to be lean, is based on GTK, and shouldn't include any compilable tools, pcmanfm-qt was ruled out due to its reliance on Qt, and nwg-drawer/nwg-wrapper was ruled out because of the mix of too many programming languages ​​and the absence of these packages in some major distributions.
+
+The only remaining option was dicons by Geronymos, which unfortunately isn't available in any distribution, isn't feature-complete, and requires compilation.
+
+For this reason, I decided to write dicons in Python. I used Google's Gemini, which helped me with the basics (connecting to the Wayland server, displaying the files, and gathering features), and GitHub's Copilot, which helped with debugging and improvements.
+
+The result is a tool that has all the features of dicons plus extensions like sorting, multi-file moves, a configuration file with numerous settings, and command-line options.
+
+So far, it has only been tested within a wlroots window and only in the project environment. Nevertheless, the performance was quite acceptable, even with full debug output.
+
 ## Features
 
 - [X] Show content from the Desktop folder as Icons on the Desktop
@@ -46,8 +66,11 @@ Layer shell **is not supported** on:
 
 ### Dependencies
 
-- gtk+-3.0
-- gtk-layer-shell
+- Python 3.10+
+- `pip` (to install Python packages)
+- A Wayland compositor that supports `zwlr_layer_shell_v1` (layer-shell)
+- Python packages listed in `requirements.txt`
+- `gettext` tools (`msgfmt`) for compiling localization files
 
 ### Installation
 
@@ -239,14 +262,7 @@ positions_file = ./icon_positions.json
 
 ### Development
 
-Dependencies
-- bear
-
-To have warnings and autocompletion with clangd in Vim you can generate the
-`compile-commands.json` with
-```sh
-make clangd
-```
+This tool isn't fully tested. Every one who wants to help is very welcome ^^
 
 ## License
 
