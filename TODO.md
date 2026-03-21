@@ -1,5 +1,7 @@
 # TODO
 
+- [x] **IPC integration with nsd daemon**: `NsdClient` class monitors mount/unmount events and manages drive icons on desktop with configurable file-manager opener.
+
 - [ ] Validate multi-monitor support in a real setup (currently untested).
 	- Test scenario: second physical monitor connected (different make/model, mixed resolution).
 	- Test scenario: monitor hotplug (connect/disconnect while `ldicons.py` is running).

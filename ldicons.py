@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 __author__ = 'Thomas Funk'
 __coauthors__ = 'Github Copilot & Gemini'
-__date__ = "2026/03/06"
-__version__ = "0.5.1"
+__date__ = "2026/03/21"
+__version__ = "0.5.2"
 
 import os
 import sys
@@ -23,6 +23,7 @@ import locale
 import gettext
 import signal
 import select
+import socket
 import re
 from cairosvg import svg2png
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
@@ -58,6 +59,113 @@ def _init_gettext():
 
 
 _ = _init_gettext()
+
+
+class NsdClient:
+    """Non-blocking Unix Domain Socket client for nsd IPC messages.
+
+    Designed for use in a select()-based main loop — no asyncio required.
+    Each newline-delimited JSON message broadcast by nsd is returned as a
+    parsed dict from :meth:`read_messages`.
+    """
+
+    _RECV_SIZE = 4096
+
+    def __init__(self, socket_path: str) -> None:
+        self._path = socket_path
+        self._sock = None
+        self._buf = ""
+
+    # ------------------------------------------------------------------
+    # Connection management
+    # ------------------------------------------------------------------
+
+    def connect(self) -> bool:
+        """Attempt a non-blocking connect to *socket_path*.
+
+        Returns True on success, False when nsd is not running or the
+        socket cannot be reached.
+        """
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.setblocking(False)
+            try:
+                sock.connect(self._path)
+            except BlockingIOError:
+                # connect() returns EINPROGRESS for non-blocking sockets;
+                # the kernel will complete the handshake in the background.
+                pass
+            self._sock = sock
+            self._buf = ""
+            print(f"[nsd] Connected to {self._path}")
+            return True
+        except FileNotFoundError:
+            print(f"[nsd] Socket not found: {self._path} (is nsd running?)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[nsd] Connect failed: {exc}")
+        return False
+
+    def close(self) -> None:
+        """Close the socket and reset internal state."""
+        if self._sock:
+            try:
+                self._sock.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._sock = None
+            self._buf = ""
+
+    @property
+    def connected(self) -> bool:
+        """True while the socket object is alive."""
+        return self._sock is not None
+
+    # ------------------------------------------------------------------
+    # select() integration
+    # ------------------------------------------------------------------
+
+    def fileno(self):
+        """Return the raw file descriptor so the socket can be passed to
+        :func:`select.select`."""
+        return self._sock.fileno() if self._sock else None
+
+    # ------------------------------------------------------------------
+    # I/O
+    # ------------------------------------------------------------------
+
+    def read_messages(self) -> list:
+        """Read available data and return a list of fully-parsed JSON dicts.
+
+        Partial lines are buffered until a terminating newline arrives.
+        Returns an empty list when there is nothing to read yet.
+        """
+        if not self._sock:
+            return []
+        try:
+            chunk = self._sock.recv(self._RECV_SIZE)
+            if not chunk:
+                # Server closed the connection.
+                self.close()
+                return []
+            self._buf += chunk.decode("utf-8", errors="replace")
+        except BlockingIOError:
+            return []
+        except Exception as exc:  # noqa: BLE001
+            print(f"[nsd] Read error: {exc}")
+            self.close()
+            return []
+
+        messages = []
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                messages.append(json.loads(line))
+            except json.JSONDecodeError:
+                print(f"[nsd] Invalid JSON: {line[:80]}")
+        return messages
 
 
 class TeeStream:
@@ -459,6 +567,13 @@ class LDIcons:
         self.menu_width = 220
         self.menu_item_height = 30
         
+        # nsd IPC integration state
+        self._nsd: NsdClient | None = None
+        self._nsd_drive_icons: dict[str, dict] = {}  # dev_node -> icon dict
+        self._nsd_enabled: bool = True
+        self._nsd_socket_path: str = "/tmp/nsd.sock"
+        self._nsd_file_manager: str = "xdg-open"
+
         # Initial config load
         self.load_config()
         self.load_icon_positions()
@@ -627,6 +742,11 @@ class LDIcons:
                 f"family='{self.ui_font_family or 'n/a'}' path='{self.ui_font_path or 'fallback'}' "
                 f"fallback='{self.fallback_font_path or 'PillowDefault'}'"
             )
+        # nsd (Nightshade Daemon) integration
+        self._nsd_enabled = config.getboolean('Daemon', 'enabled', fallback=True)
+        self._nsd_socket_path = config.get('Daemon', 'socket_path', fallback='/tmp/nsd.sock').strip()
+        self._nsd_file_manager = config.get('Daemon', 'file_manager', fallback='xdg-open').strip()
+
         print("⚙️ Configuration loaded.")
 
     def _persist_behavior_bool(self, option_name, enabled):
@@ -4881,27 +5001,139 @@ class LDIcons:
         except Exception as e:
             print(f"❌ Error: {e}")
 
+    # ------------------------------------------------------------------
+    # nsd integration helpers
+    # ------------------------------------------------------------------
+
+    def _nsd_connect(self) -> None:
+        """Try to connect to the nsd Unix socket; silently skip if unavailable."""
+        if not self._nsd_enabled:
+            return
+        client = NsdClient(self._nsd_socket_path)
+        if client.connect():
+            self._nsd = client
+        else:
+            self._nsd = None
+
+    def _handle_nsd_messages(self) -> None:
+        """Read and dispatch all pending nsd IPC messages."""
+        if not self._nsd:
+            return
+        for msg in self._nsd.read_messages():
+            action = msg.get("action")
+            payload = msg.get("payload", {})
+            if action == "mounted":
+                self._add_drive_icon(payload)
+            elif action == "unmounted":
+                self._remove_drive_icon(payload)
+
+    def _add_drive_icon(self, payload: dict) -> None:
+        """Add a clickable drive icon for a newly mounted device.
+
+        Parameters
+        ----------
+        payload:
+            The ``mounted`` IPC payload from nsd containing at minimum
+            ``device``, ``mount_point``, ``label``, and ``fs_type``.
+        """
+        dev_node = payload.get("device", "")
+        mount_point = payload.get("mount_point", "")
+        if not dev_node or not mount_point or dev_node in self._nsd_drive_icons:
+            return
+
+        label = payload.get("label") or os.path.basename(mount_point) or dev_node
+        fs_type = payload.get("fs_type", "")
+
+        # Resolve a suitable drive icon from the active theme.
+        icon_path = (
+            self.find_icon("drive-removable-media", use_fallback=False)
+            or self.find_icon("media-removable", use_fallback=False)
+            or self.find_icon("drive-harddisk", use_fallback=False)
+            or self.find_icon("drive-harddisk")
+        )
+
+        # Build the launch command that opens the mount point.
+        fm = self._nsd_file_manager or "xdg-open"
+        exec_cmd = f"{fm} '{mount_point}'"
+
+        # Find a free grid position after all existing icons.
+        occupied = {(i["x"], i["y"]) for i in self.icons}
+        x = int(self.snap_origin_x)
+        y = int(self.snap_origin_y)
+        while (x, y) in occupied:
+            y += int(self.spacing_y)
+            if y > max(m.height for m in self.monitors) - self.icon_size:
+                y = int(self.snap_origin_y)
+                x += int(self.spacing_x)
+
+        icon_data = {
+            "name": label,
+            "exec": exec_cmd,
+            "icon_path": icon_path,
+            "path": mount_point,
+            "comment": f"{fs_type} — {mount_point}" if fs_type else mount_point,
+            "type": "drive",
+            "x": x,
+            "y": y,
+            "icon_rect": [0, 0, 0, 0],
+            "text_rect": [0, 0, 0, 0],
+        }
+        self._update_icon_hitboxes(icon_data)
+        self.icons.append(icon_data)
+        self._nsd_drive_icons[dev_node] = icon_data
+        self.update_wayland_input_region()
+        self.refresh_desktop()
+        print(f"[nsd] Drive icon added: {label} → {mount_point}")
+
+    def _remove_drive_icon(self, payload: dict) -> None:
+        """Remove the drive icon for an unmounted device.
+
+        Parameters
+        ----------
+        payload:
+            The ``unmounted`` IPC payload from nsd containing ``device``.
+        """
+        dev_node = payload.get("device", "")
+        icon_data = self._nsd_drive_icons.pop(dev_node, None)
+        if icon_data is None:
+            return
+        try:
+            self.icons.remove(icon_data)
+        except ValueError:
+            pass
+        self.update_wayland_input_region()
+        self.refresh_desktop()
+        print(f"[nsd] Drive icon removed: {dev_node}")
+
     def run(self):
         """
         Starts the main loop for event processing and live reload.
         """
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         print("🚀 LD-Icons multi-monitor mode active. (Ctrl+C to quit)")
-        
+        self._nsd_connect()
+
         last_check = 0
         check_interval = 1.0  # Check files only once per second
-        
+
         try:
             while True:
                 # 1. Process events (mouse, resize, etc.)
                 # According to pywayland, block=False does not read new events.
                 # Therefore wait with select() on display FD and then dispatch in blocking mode.
                 display_fd = self.display.get_fd()
-                readable, _, _ = select.select([display_fd], [], [], 0.02)
-                if readable:
+                fds = [display_fd]
+                nsd_fd = self._nsd.fileno() if self._nsd and self._nsd.connected else None
+                if nsd_fd is not None:
+                    fds.append(nsd_fd)
+                readable, _, _ = select.select(fds, [], [], 0.02)
+                if display_fd in readable:
                     self.display.dispatch(block=True)
                 else:
                     self.display.dispatch(block=False)
+                # Handle incoming nsd IPC messages (drive mount/unmount).
+                if nsd_fd is not None and nsd_fd in readable:
+                    self._handle_nsd_messages()
                 
                 # 2. Time-critical tooltip logic (must run often)
                 if self.hover_index != -1 and not self.tooltip_visible:

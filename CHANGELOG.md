@@ -12,6 +12,8 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-03-21
+
 ### Added
 - **nsd integration**: embedded `NsdClient` class (non-blocking Unix Domain Socket
   client) directly in `ldicons.py` — no extra dependency, no asyncio required.
@@ -22,6 +24,8 @@ The format is based on Keep a Changelog.
     and `file_manager` options.
   - The socket fd is included in the `select()` main-loop alongside the Wayland
     display fd, so latency is the same as for Wayland events.
+- Unit tests for `NsdClient` class: 15 tests covering connection management, JSON parsing,
+  buffering, error handling, and realistic nsd message scenarios (`test_nsd_client.py`).
 - Image files on the desktop now render as real thumbnails in icon size, preserving aspect ratio with transparent padding for non-square images.
 - Added a `Makefile` with `install` / `uninstall` targets for system-wide and user-local installation.
 

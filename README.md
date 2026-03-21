@@ -145,6 +145,27 @@ python3 -u ldicons.py \
 - `--verbose`: enables debug output
 - `-v, --version`: prints version
 
+### IPC Integration (nsd daemon)
+
+`ld-icons` can automatically detect and display mounted drives via the optional `nsd` (Notification Service Daemon) integration. When nsd broadcasts a `mounted` event, a drive icon appears on the desktop; when unmounted, it disappears. Clicking the drive icon opens its mount point in a file manager.
+
+Enable nsd integration in `ldicons.conf`:
+
+```ini
+[Daemon]
+enabled = true
+socket_path = /tmp/nsd.sock
+file_manager = pcmanfm
+```
+
+- `enabled` (default: `false`): enable IPC listener for mount events
+- `socket_path` (default: `/tmp/nsd.sock`): Unix Domain Socket path to nsd
+- `file_manager` (default: `pcmanfm`): file manager command; pass mount path as argument
+
+The socket is integrated into ldicons' main `select()` loop, so response latency is the same as Wayland pointer/keyboard events.
+
+**Note:** nsd must be running separately. IPC connection is non-blocking and fails gracefully if nsd is unavailable.
+
 Input event debugging can be enabled with:
 
 ```sh
