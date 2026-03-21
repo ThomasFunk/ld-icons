@@ -13,6 +13,15 @@ The format is based on Keep a Changelog.
 ## [Unreleased]
 
 ### Added
+- **nsd integration**: embedded `NsdClient` class (non-blocking Unix Domain Socket
+  client) directly in `ldicons.py` — no extra dependency, no asyncio required.
+  - Drive icon is added to the desktop automatically when nsd broadcasts a
+    `mounted` event; removed again on `unmounted`.
+  - Clicking the drive icon opens the mount point with a configurable file manager.
+  - New `[Daemon]` section in `ldicons.conf` exposes `enabled`, `socket_path`,
+    and `file_manager` options.
+  - The socket fd is included in the `select()` main-loop alongside the Wayland
+    display fd, so latency is the same as for Wayland events.
 - Image files on the desktop now render as real thumbnails in icon size, preserving aspect ratio with transparent padding for non-square images.
 - Added a `Makefile` with `install` / `uninstall` targets for system-wide and user-local installation.
 
